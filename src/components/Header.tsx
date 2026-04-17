@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
 import { Menu, Search, Bell, LogOut, User, Moon, Sun, Settings } from 'lucide-react';
 import { toast } from 'sonner';
+import LanguageSwitcher from './LanguageSwitcher';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -11,13 +13,14 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ onMenuClick, onSearch, searchQuery, onOpenAuth }) => {
+  const { t } = useTranslation();
   const { user, signOut } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
-    toast.success('Signed out successfully');
+    toast.success(t('auth.signedOutSuccessfully'));
     setShowUserMenu(false);
   };
 
@@ -30,19 +33,22 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick, onSearch, searchQuery, onO
       {/* Search */}
       <div className="flex-1 max-w-xl">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 ${t('common.direction') === 'rtl' ? 'right-3' : 'left-3'}`} />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearch(e.target.value)}
-            placeholder="Search records, medications, tests..."
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white outline-none transition"
+            placeholder={t('dashboard.searchPlaceholder') || 'Search records, medications, tests...'}
+            className={`w-full py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white outline-none transition ${
+              t('common.direction') === 'rtl' ? 'pl-4 pr-10' : 'pl-10 pr-4'
+            }`}
           />
         </div>
       </div>
 
       {/* Right side */}
       <div className="flex items-center gap-2">
+        <LanguageSwitcher />
         {user ? (
           <>
             <button className="p-2 rounded-xl hover:bg-gray-100 transition relative">
@@ -76,7 +82,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick, onSearch, searchQuery, onO
                       className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition"
                     >
                       <LogOut className="w-4 h-4" />
-                      Sign Out
+                      {t('auth.signOut')}
                     </button>
                   </div>
                 </>
@@ -88,7 +94,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick, onSearch, searchQuery, onO
             onClick={onOpenAuth}
             className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-blue-500/25 transition-all"
           >
-            Sign In
+            {t('auth.signIn')}
           </button>
         )}
       </div>

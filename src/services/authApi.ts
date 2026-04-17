@@ -1,4 +1,5 @@
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
+import { languageApi } from './languageApi';
 
 const API_BASE_URL = 'https://localhost:62427/api';
 
@@ -14,10 +15,21 @@ export interface LoginRequest {
 
 export interface AuthResponse {
   token?: string;
+  accessToken?: string;
+  jwt?: string;
   user?: {
     id: string;
     email: string;
   };
+  userInfo?: {
+    id: string;
+    email: string;
+  };
+  profile?: {
+    id: string;
+    email: string;
+  };
+  preferredLanguage?: string;
 }
 
 export interface ApiError {
@@ -53,8 +65,11 @@ export const authApi = {
           'Content-Type': 'application/json',
         },
       });
+      debugger;
+      console.log('Raw API response:', response.data);
       return response.data;
     } catch (error: any) {
+      console.error('API error:', error.response?.data);
       if (axios.isAxiosError(error) && error.response?.data) {
         throw error.response.data as ApiError;
       }
@@ -63,11 +78,16 @@ export const authApi = {
   },
 
   storeAuthData(authResponse: AuthResponse) {
-    if (authResponse.token) {
-      localStorage.setItem('authToken', authResponse.token);
+    console.log('Storing auth data:', authResponse);
+    // Handle different possible token field names
+    const token = authResponse.token || authResponse.accessToken || authResponse.jwt;
+    if (token) {
+      localStorage.setItem('authToken', token);
     }
-    if (authResponse.user) {
-      localStorage.setItem('authUser', JSON.stringify(authResponse.user));
+    // Handle different possible user field names
+    const user = authResponse.user || authResponse.userInfo || authResponse.profile;
+    if (user) {
+      localStorage.setItem('authUser', JSON.stringify(user));
     }
   },
 
@@ -83,5 +103,11 @@ export const authApi = {
   clearAuthData() {
     localStorage.removeItem('authToken');
     localStorage.removeItem('authUser');
+  },
+
+  // Set user language preference
+  setUserLanguage(language: string) {
+    // This will be called when login response includes language preference
+    languageApi.setLanguageSession(language);
   }
 };

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { useTranslation } from 'react-i18next';
+import { medicationApi } from '@/services/medicationApi';
+import { profileApi } from '@/services/profileApi';
 import type { ViewType } from './Sidebar';
 import { toast } from 'sonner';
 import {
@@ -23,7 +25,8 @@ interface Stats {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
-  const { user, session } = useAuth();
+  const { t } = useTranslation();
+  const { user } = useAuth();
   const [stats, setStats] = useState<Stats>({ medications: 0, currentMeds: 0, labTests: 0, scans: 0, diagnoses: 0, surgeries: 0 });
   const [recentItems, setRecentItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,29 +34,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [exporting, setExporting] = useState(false);
 
   const handleExportPDF = async () => {
-    if (!session?.access_token) {
-      toast.error('Please sign in to export your profile');
+    if (!user) {
+      toast.error(t('dashboard.signInToExport'));
       return;
     }
     setExporting(true);
-    toast.info('Generating your health profile PDF...');
+    toast.info(t('dashboard.generatingPDF'));
     try {
-      const { data, error } = await supabase.functions.invoke('export-pdf', {});
-      if (error) throw error;
-      // data is the response - we need the raw blob
-      const blob = new Blob([data], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `HealthProfile_${new Date().toISOString().split('T')[0]}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success('PDF downloaded successfully!');
+      // TODO: Implement PDF export with new API
+      toast.error(t('dashboard.pdfExportNotImplemented'));
     } catch (err: any) {
       console.error('PDF export error:', err);
-      toast.error('Failed to generate PDF. Please try again.');
+      toast.error(t('dashboard.pdfExportError'));
     }
     setExporting(false);
   };
@@ -66,37 +58,38 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     if (!user) return;
     setLoading(true);
     try {
-      const [medsRes, labsRes, scansRes, diagRes, surgRes, profRes] = await Promise.all([
-        supabase.from('medications').select('*', { count: 'exact' }).eq('user_id', user.id),
-        supabase.from('lab_tests').select('*', { count: 'exact' }).eq('user_id', user.id),
-        supabase.from('radiology_scans').select('*', { count: 'exact' }).eq('user_id', user.id),
-        supabase.from('diagnoses').select('*', { count: 'exact' }).eq('user_id', user.id),
-        supabase.from('surgeries').select('*', { count: 'exact' }).eq('user_id', user.id),
-        supabase.from('profiles').select('*').eq('user_id', user.id).single(),
-      ]);
-
-      const currentMeds = (medsRes.data || []).filter(m => m.is_current).length;
+      // Fetch medications using the new API
+      const medications = await medicationApi.getMedications();
+      const currentMeds = medications.filter(m => m.isCurrent).length;
+      
+      // Fetch profile using the new API
+      const profile = await profileApi.getProfile();
+      
       setStats({
-        medications: medsRes.count || 0,
+        medications: medications.length,
         currentMeds,
-        labTests: labsRes.count || 0,
-        scans: scansRes.count || 0,
-        diagnoses: diagRes.count || 0,
-        surgeries: surgRes.count || 0,
+        labTests: 0, // TODO: Implement labTests API
+        scans: 0, // TODO: Implement radiology API
+        diagnoses: 0, // TODO: Implement diagnoses API
+        surgeries: 0, // TODO: Implement surgeries API
       });
-      setProfile(profRes.data);
+      setProfile(profile);
 
-      // Build recent items
+      // Build recent items from medications
       const items: any[] = [];
-      (medsRes.data || []).slice(0, 3).forEach(m => items.push({ ...m, type: 'medication', date: m.start_date }));
-      (labsRes.data || []).slice(0, 3).forEach(l => items.push({ ...l, type: 'lab_test', date: l.test_date }));
-      (scansRes.data || []).slice(0, 3).forEach(s => items.push({ ...s, type: 'scan', date: s.scan_date }));
-      (diagRes.data || []).slice(0, 3).forEach(d => items.push({ ...d, type: 'diagnosis', date: d.date_diagnosed }));
-      (surgRes.data || []).slice(0, 3).forEach(s => items.push({ ...s, type: 'surgery', date: s.surgery_date }));
+      medications.slice(0, 8).forEach(m => items.push({ 
+        ...m, 
+        type: 'medication', 
+        date: m.startDate,
+        is_current: m.isCurrent
+      }));
+      
+      // Sort by date (newest first)
       items.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
-      setRecentItems(items.slice(0, 8));
+      setRecentItems(items);
     } catch (err) {
       console.error(err);
+      toast.error(t('dashboard.fetchError'));
     }
     setLoading(false);
   };
@@ -109,9 +102,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     { label: 'Surgeries', value: stats.surgeries, icon: Scissors, color: 'from-cyan-500 to-blue-400', bgLight: 'bg-cyan-50', textColor: 'text-cyan-700', view: 'surgeries' as ViewType },
   ];
 
-  const getItemIcon = (type: string) => {
+  const getItemIcon = (type: string, isActive?: boolean) => {
     switch (type) {
-      case 'medication': return <Pill className="w-4 h-4 text-emerald-600" />;
+      case 'medication': return <Pill className={`w-4 h-4 ${isActive ? 'text-emerald-600' : 'text-gray-400'}`} />;
       case 'lab_test': return <FlaskConical className="w-4 h-4 text-amber-600" />;
       case 'scan': return <ScanLine className="w-4 h-4 text-purple-600" />;
       case 'diagnosis': return <Stethoscope className="w-4 h-4 text-rose-600" />;
@@ -270,10 +263,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="divide-y divide-gray-50">
             {recentItems.map((item, i) => {
               const badge = getItemBadge(item.type);
+              const isActive = item.type === 'medication' ? item.is_current : undefined;
               return (
                 <div key={item.id || i} className="p-4 flex items-center gap-3 hover:bg-gray-50 transition">
-                  <div className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                    {getItemIcon(item.type)}
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    item.type === 'medication' ? (item.is_current ? 'bg-emerald-50' : 'bg-gray-50') : 'bg-gray-50'
+                  }`}>
+                    {getItemIcon(item.type, isActive)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{getItemName(item)}</p>

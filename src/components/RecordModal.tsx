@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Upload, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { documentApi, DocumentType, ParentEntityType } from '@/services/documentApi';
 import { toast } from 'sonner';
 
 export interface FieldConfig {
@@ -19,21 +20,27 @@ interface RecordModalProps {
   title: string;
   fields: FieldConfig[];
   initialData?: Record<string, any>;
-  onSave: (data: Record<string, any>, fileUrl?: string) => Promise<void>;
+  onSave: (data: Record<string, any>, fileUrl?: string, documentId?: number) => Promise<void>;
   showFileUpload?: boolean;
   fileLabel?: string;
   existingFileUrl?: string;
+  documentType?: DocumentType;
+  parentEntityType?: ParentEntityType;
+  parentEntityId?: number;
 }
 
 const RecordModal: React.FC<RecordModalProps> = ({
-  isOpen, onClose, title, fields, initialData, onSave, showFileUpload, fileLabel, existingFileUrl
+  isOpen, onClose, title, fields, initialData, onSave, showFileUpload, fileLabel, existingFileUrl,
+  documentType = DocumentType.General, parentEntityType = ParentEntityType.None, parentEntityId
 }) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [form, setForm] = useState<Record<string, any>>(initialData || {});
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [fileUrl, setFileUrl] = useState(existingFileUrl || '');
   const [fileName, setFileName] = useState('');
+  const [documentId, setDocumentId] = useState<number | undefined>();
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
@@ -47,26 +54,29 @@ const RecordModal: React.FC<RecordModalProps> = ({
     if (!file || !user) return;
 
     if (file.size > 10 * 1024 * 1024) {
-      toast.error('File size must be less than 10MB');
+      toast.error(t('documents.fileSizeError'));
       return;
     }
 
     setUploading(true);
-    const ext = file.name.split('.').pop();
-    const path = `${user.id}/${Date.now()}.${ext}`;
-
-    const { data, error } = await supabase.storage
-      .from('medical-files')
-      .upload(path, file);
-
-    if (error) {
-      toast.error('Failed to upload file');
-    } else {
-      const { data: urlData } = supabase.storage.from('medical-files').getPublicUrl(path);
-      setFileUrl(urlData.publicUrl);
-      setFileName(file.name);
-      toast.success('File uploaded successfully');
+    
+    try {
+      const document = await documentApi.uploadDocument(
+        file,
+        documentType,
+        parentEntityType,
+        parentEntityId
+      );
+      
+      setFileUrl(document.url || document.filePath);
+      setFileName(document.originalFileName);
+      setDocumentId(document.id);
+      toast.success(t('documents.uploadSuccess'));
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast.error(error.error || t('documents.uploadError'));
     }
+    
     setUploading(false);
   };
 
@@ -75,16 +85,16 @@ const RecordModal: React.FC<RecordModalProps> = ({
     const required = fields.filter(f => f.required);
     for (const f of required) {
       if (!form[f.name]) {
-        toast.error(`${f.label} is required`);
+        toast.error(t('validation.required', { field: f.label }));
         return;
       }
     }
     setSaving(true);
     try {
-      await onSave(form, fileUrl || undefined);
+      await onSave(form, fileUrl || undefined, documentId);
       onClose();
     } catch (err) {
-      toast.error('Failed to save record');
+      toast.error(t('common.saveError'));
     }
     setSaving(false);
   };
@@ -146,7 +156,7 @@ const RecordModal: React.FC<RecordModalProps> = ({
 
           {showFileUpload && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{fileLabel || 'Upload File'}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{fileLabel || t('documents.uploadFile')}</label>
               <div
                 onClick={() => fileRef.current?.click()}
                 className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition"
@@ -155,18 +165,18 @@ const RecordModal: React.FC<RecordModalProps> = ({
                 {uploading ? (
                   <div className="flex items-center justify-center gap-2 text-blue-600">
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span className="text-sm">Uploading...</span>
+                    <span className="text-sm">{t('documents.uploading')}</span>
                   </div>
                 ) : fileUrl ? (
                   <div className="flex items-center justify-center gap-2 text-emerald-600">
                     <FileText className="w-5 h-5" />
-                    <span className="text-sm font-medium">{fileName || 'File uploaded'}</span>
+                    <span className="text-sm font-medium">{fileName || t('documents.fileUploaded')}</span>
                   </div>
                 ) : (
                   <>
                     <Upload className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">Click to upload (max 10MB)</p>
-                    <p className="text-xs text-gray-400">Images, PDFs accepted</p>
+                    <p className="text-sm text-gray-500">{t('documents.clickToUpload')}</p>
+                    <p className="text-xs text-gray-400">{t('documents.acceptedFormats')}</p>
                   </>
                 )}
               </div>
@@ -179,14 +189,14 @@ const RecordModal: React.FC<RecordModalProps> = ({
               onClick={onClose}
               className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
               disabled={saving}
               className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-blue-500/25 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'Save Record'}
+              {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : t('common.save')}
             </button>
           </div>
         </form>
