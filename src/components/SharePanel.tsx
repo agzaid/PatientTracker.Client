@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { sharedLinksApi, type SharedLinkDto, type CreateSharedLinkRequest } from '@/services/sharedLinksApi';
 import { toast } from 'sonner';
-import { v4 as uuidv4 } from 'uuid';
 import {
   Share2, Plus, Copy, Trash2, ExternalLink, Clock, Eye, Shield,
   Link2, QrCode, CheckCircle2, XCircle, Globe
@@ -25,60 +24,58 @@ const SharePanel: React.FC = () => {
   const fetchLinks = async () => {
     if (!user) return;
     setLoading(true);
-    const { data } = await supabase
-      .from('shared_links')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-    if (data) setLinks(data);
+    try {
+      const data = await sharedLinksApi.getSharedLinks();
+      setLinks(data);
+    } catch (error: any) {
+      console.error('Failed to fetch shared links:', error);
+      toast.error(error.error || 'Failed to fetch shared links');
+    }
     setLoading(false);
   };
 
   const createLink = async () => {
     if (!user) return;
     setCreating(true);
-    const token = uuidv4();
-    let expiresAt: string | null = null;
-
-    if (expiry !== 'never') {
-      const d = new Date();
-      switch (expiry) {
-        case '24h': d.setHours(d.getHours() + 24); break;
-        case '7d': d.setDate(d.getDate() + 7); break;
-        case '30d': d.setDate(d.getDate() + 30); break;
-      }
-      expiresAt = d.toISOString();
-    }
-
-    const { error } = await supabase.from('shared_links').insert({
-      user_id: user.id,
-      token,
-      expires_at: expiresAt,
+    
+    const request: CreateSharedLinkRequest = {
       categories,
-      is_active: true,
-    });
+      expiry
+    };
 
-    if (error) {
-      toast.error('Failed to create link');
-    } else {
+    try {
+      await sharedLinksApi.createSharedLink(request);
       toast.success('Shareable link created!');
       setShowCreate(false);
       fetchLinks();
+    } catch (error: any) {
+      console.error('Failed to create shared link:', error);
+      toast.error(error.error || 'Failed to create link');
     }
     setCreating(false);
   };
 
-  const deleteLink = async (id: string) => {
+  const deleteLink = async (id: number) => {
     if (!confirm('Delete this shared link?')) return;
-    await supabase.from('shared_links').delete().eq('id', id);
-    toast.success('Link deleted');
-    fetchLinks();
+    try {
+      await sharedLinksApi.deleteSharedLink(id);
+      toast.success('Link deleted');
+      fetchLinks();
+    } catch (error: any) {
+      console.error('Failed to delete shared link:', error);
+      toast.error(error.error || 'Failed to delete link');
+    }
   };
 
-  const toggleActive = async (id: string, current: boolean) => {
-    await supabase.from('shared_links').update({ is_active: !current }).eq('id', id);
-    toast.success(current ? 'Link deactivated' : 'Link activated');
-    fetchLinks();
+  const toggleActive = async (id: number, current: boolean) => {
+    try {
+      await sharedLinksApi.toggleSharedLink(id);
+      toast.success(current ? 'Link deactivated' : 'Link activated');
+      fetchLinks();
+    } catch (error: any) {
+      console.error('Failed to toggle shared link:', error);
+      toast.error(error.error || 'Failed to toggle link');
+    }
   };
 
   const copyLink = (token: string, id: string) => {
@@ -231,8 +228,8 @@ const SharePanel: React.FC = () => {
       ) : (
         <div className="grid gap-3">
           {links.map(link => {
-            const expired = isExpired(link.expires_at);
-            const active = link.is_active && !expired;
+            const expired = isExpired(link.expiresAt);
+            const active = link.isActive && !expired;
             return (
               <div key={link.id} className={`bg-white rounded-xl border p-4 transition-all ${active ? 'border-gray-100 hover:shadow-md' : 'border-gray-100 opacity-60'}`}>
                 <div className="flex items-start justify-between gap-3">
@@ -252,7 +249,7 @@ const SharePanel: React.FC = () => {
                         </span>
                       )}
                       <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
-                        <Eye className="w-3 h-3" /> {link.access_count} views
+                        <Eye className="w-3 h-3" /> {link.accessCount} views
                       </span>
                     </div>
 
@@ -270,14 +267,13 @@ const SharePanel: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-3 text-[10px] text-gray-400">
-                      <span>Created: {new Date(link.created_at).toLocaleDateString()}</span>
-                      {link.expires_at && (
-                        <span className="flex items-center gap-0.5">
-                          <Clock className="w-3 h-3" />
-                          Expires: {new Date(link.expires_at).toLocaleDateString()}
+                      <span>Created: {new Date(link.createdAt).toLocaleDateString()}</span>
+                      {link.expiresAt && (
+                        <span className="text-xs text-gray-400">
+                          Expires: {new Date(link.expiresAt).toLocaleDateString()}
                         </span>
                       )}
-                      {!link.expires_at && <span>No expiration</span>}
+                      {!link.expiresAt && <span>No expiration</span>}
                     </div>
                   </div>
 
@@ -290,11 +286,11 @@ const SharePanel: React.FC = () => {
                       {copiedId === link.id ? <CheckCircle2 className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     </button>
                     <button
-                      onClick={() => toggleActive(link.id, link.is_active)}
-                      className={`p-2 rounded-lg transition ${link.is_active ? 'hover:bg-amber-50 text-amber-500' : 'hover:bg-emerald-50 text-emerald-500'}`}
-                      title={link.is_active ? 'Deactivate' : 'Activate'}
+                      onClick={() => toggleActive(link.id, link.isActive)}
+                      className={`p-2 rounded-lg transition ${link.isActive ? 'hover:bg-amber-50 text-amber-500' : 'hover:bg-emerald-50 text-emerald-500'}`}
+                      title={link.isActive ? 'Deactivate' : 'Activate'}
                     >
-                      {link.is_active ? <XCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                      {link.isActive ? <XCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
                     </button>
                     <button
                       onClick={() => deleteLink(link.id)}

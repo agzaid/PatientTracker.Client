@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { shareApi, type SharedProfileResponse } from '@/services/shareApi';
+import { documentApi, type DocumentDto, DocumentType } from '@/services/documentApi';
+import DocumentsList from './DocumentsList';
 import {
   Heart, Pill, FlaskConical, ScanLine, Stethoscope, Scissors,
-  AlertTriangle, User, Phone, Droplets, Shield, Clock, ExternalLink
+  AlertTriangle, User, Phone, Droplets, Shield, Clock, ExternalLink,
+  FileText, Download, ImageIcon
 } from 'lucide-react';
 
 interface SharedProfileViewProps {
@@ -10,9 +13,10 @@ interface SharedProfileViewProps {
 }
 
 const SharedProfileView: React.FC<SharedProfileViewProps> = ({ token }) => {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<SharedProfileResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [imageUrls, setImageUrls] = useState<Record<number, string>>({});
 
   useEffect(() => {
     fetchSharedData();
@@ -21,19 +25,113 @@ const SharedProfileView: React.FC<SharedProfileViewProps> = ({ token }) => {
   const fetchSharedData = async () => {
     setLoading(true);
     try {
-      const { data: result, error: err } = await supabase.functions.invoke('view-shared-profile', {
-        body: { token },
+      const result = await shareApi.getSharedProfile(token);
+      setData(result);
+      
+      // Collect all documents from all entities
+      const allDocuments: DocumentDto[] = [];
+      
+      // Add documents from medications
+      result.medications?.forEach(med => {
+        med.documents?.forEach(doc => allDocuments.push(doc));
       });
-      if (err || result?.error) {
-        setError(result?.error || 'Failed to load profile');
-      } else {
-        setData(result);
+      
+      // Add documents from lab tests
+      result.labTests?.forEach(test => {
+        test.documents?.forEach(doc => allDocuments.push(doc));
+      });
+      
+      // Add documents from radiology scans
+      result.radiologyScans?.forEach(scan => {
+        scan.documents?.forEach(doc => allDocuments.push(doc));
+      });
+      
+      // Add documents from diagnoses
+      result.diagnoses?.forEach(diagnosis => {
+        diagnosis.documents?.forEach(doc => allDocuments.push(doc));
+      });
+      
+      // Add documents from surgeries
+      result.surgeries?.forEach(surgery => {
+        surgery.documents?.forEach(doc => allDocuments.push(doc));
+      });
+      
+      // Fetch image blobs for image documents
+      if (allDocuments.length > 0) {
+        const imagePromises = allDocuments
+          .filter(doc => doc.contentType.startsWith('image/'))
+          .map(async (doc) => {
+            try {
+              const blob = await shareApi.downloadSharedDocument(token, doc.id);
+              const url = URL.createObjectURL(blob);
+              return { id: doc.id, url };
+            } catch (error) {
+              console.error(`Failed to fetch image ${doc.id}:`, error);
+              return null;
+            }
+          });
+        
+        const imageResults = await Promise.all(imagePromises);
+        const newImageUrls: Record<number, string> = {};
+        imageResults.forEach(result => {
+          if (result) {
+            newImageUrls[result.id] = result.url;
+          }
+        });
+        setImageUrls(newImageUrls);
       }
-    } catch (e) {
-      setError('Failed to load shared profile');
+    } catch (e: any) {
+      setError(e.error || 'Failed to load shared profile');
     }
     setLoading(false);
   };
+
+  const handleDownload = async (document: DocumentDto) => {
+    try {
+      const blob = await shareApi.downloadSharedDocument(token, document.id);
+      const url = window.URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = url;
+      a.download = document.originalFileName;
+      window.document.body.appendChild(a);
+      a.click();
+      window.document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error: any) {
+      console.error('Failed to download document:', error);
+      const errorMessage = error.error || 'Failed to download document';
+      alert(errorMessage);
+    }
+  };
+
+  const handleView = async (document: DocumentDto) => {
+    try {
+      if (document.contentType.startsWith('image/')) {
+        // For images, open the blob URL directly
+        if (imageUrls[document.id]) {
+          window.open(imageUrls[document.id], '_blank');
+        }
+      } else {
+        // For PDFs and other documents, download and open
+        const blob = await shareApi.downloadSharedDocument(token, document.id);
+        const url = window.URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        // Don't revoke immediately to allow the new tab to load
+        setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+      }
+    } catch (error: any) {
+      console.error('Failed to view document:', error);
+      const errorMessage = error.error || 'Failed to view document';
+      alert(errorMessage);
+    }
+  };
+
+  // Cleanup blob URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      Object.values(imageUrls).forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [imageUrls]);
 
   if (loading) {
     return (
@@ -82,12 +180,12 @@ const SharedProfileView: React.FC<SharedProfileViewProps> = ({ token }) => {
           </div>
           {profile && (
             <div>
-              <h1 className="text-2xl font-bold">{profile.full_name || 'Patient Profile'}</h1>
+              <h1 className="text-2xl font-bold">{profile.fullName || `${profile.firstName || ''} ${profile.lastName || ''}`.trim() || 'Patient Profile'}</h1>
               <div className="flex flex-wrap gap-4 mt-3 text-sm text-blue-100">
                 {profile.gender && <span>{profile.gender}</span>}
-                {profile.date_of_birth && <span>DOB: {new Date(profile.date_of_birth).toLocaleDateString()}</span>}
-                {profile.blood_type && (
-                  <span className="flex items-center gap-1"><Droplets className="w-3 h-3" /> {profile.blood_type}</span>
+                {profile.dateOfBirth && <span>DOB: {new Date(profile.dateOfBirth).toLocaleDateString()}</span>}
+                {profile.bloodType && (
+                  <span className="flex items-center gap-1"><Droplets className="w-3 h-3" /> {profile.bloodType}</span>
                 )}
               </div>
               {profile.allergies?.length > 0 && (
@@ -104,22 +202,22 @@ const SharedProfileView: React.FC<SharedProfileViewProps> = ({ token }) => {
       {/* Content */}
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
         {/* Emergency Contact */}
-        {profile?.emergency_contact_name && (
+        {profile?.emergencyContactName && (
           <div className="bg-red-50 border border-red-100 rounded-xl p-4 flex items-center gap-3">
             <Phone className="w-5 h-5 text-red-500" />
             <div>
-              <p className="text-sm font-medium text-red-800">Emergency Contact: {profile.emergency_contact_name}</p>
-              <p className="text-xs text-red-600">{profile.emergency_contact_phone} ({profile.emergency_contact_relation})</p>
+              <p className="text-sm font-medium text-red-800">Emergency Contact: {profile.emergencyContactName}</p>
+              <p className="text-xs text-red-600">{profile.emergencyContactPhone} ({profile.emergencyContactRelation})</p>
             </div>
           </div>
         )}
 
         {/* Chronic Diseases */}
-        {profile?.chronic_diseases?.length > 0 && (
+        {profile?.chronicDiseases?.length > 0 && (
           <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
             <p className="text-sm font-medium text-amber-800 mb-2">Chronic Conditions</p>
             <div className="flex flex-wrap gap-2">
-              {profile.chronic_diseases.map((d: string) => (
+              {profile.chronicDiseases.map((d: string) => (
                 <span key={d} className="bg-amber-100 text-amber-700 px-3 py-1 rounded-lg text-xs font-medium">{d}</span>
               ))}
             </div>
@@ -131,16 +229,24 @@ const SharedProfileView: React.FC<SharedProfileViewProps> = ({ token }) => {
           <Section title={`Medications (${data.medications.length})`} icon={Pill} color="text-emerald-700">
             <div className="space-y-3">
               {data.medications.map((m: any) => (
-                <div key={m.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                  <Pill className={`w-4 h-4 mt-0.5 ${m.is_current ? 'text-emerald-600' : 'text-gray-400'}`} />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {m.name}
-                      {m.is_current && <span className="ml-2 text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Active</span>}
-                    </p>
-                    {m.dosage && <p className="text-xs text-gray-500">{m.dosage} {m.frequency && `- ${m.frequency}`}</p>}
-                    {m.notes && <p className="text-xs text-gray-400 mt-1">{m.notes}</p>}
+                <div key={m.id} className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <Pill className={`w-4 h-4 mt-0.5 ${m.isCurrent ? 'text-emerald-600' : 'text-gray-400'}`} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {m.name}
+                        {m.isCurrent && <span className="ml-2 text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Active</span>}
+                      </p>
+                      {m.dosage && <p className="text-xs text-gray-500">{m.dosage} {m.frequency && `- ${m.frequency}`}</p>}
+                      {m.notes && <p className="text-xs text-gray-400 mt-1">{m.notes}</p>}
+                    </div>
                   </div>
+                  <DocumentsList 
+                    documents={m.documents || []} 
+                    imageUrls={imageUrls} 
+                    onDownload={handleDownload} 
+                    onView={handleView}
+                  />
                 </div>
               ))}
             </div>
@@ -148,22 +254,30 @@ const SharedProfileView: React.FC<SharedProfileViewProps> = ({ token }) => {
         )}
 
         {/* Lab Tests */}
-        {data?.lab_tests?.length > 0 && (
-          <Section title={`Lab Tests (${data.lab_tests.length})`} icon={FlaskConical} color="text-amber-700">
+        {data?.labTests?.length > 0 && (
+          <Section title={`Lab Tests (${data.labTests.length})`} icon={FlaskConical} color="text-amber-700">
             <div className="space-y-3">
-              {data.lab_tests.map((t: any) => (
-                <div key={t.id} className="flex items-start justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{t.test_name}</p>
-                    <p className="text-xs text-gray-500">{t.test_date ? new Date(t.test_date).toLocaleDateString() : ''}</p>
-                    {t.notes && <p className="text-xs text-gray-400 mt-1">{t.notes}</p>}
-                  </div>
-                  {t.result_value && (
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-gray-900">{t.result_value} {t.result_unit}</p>
-                      {t.normal_range && <p className="text-[10px] text-gray-400">Normal: {t.normal_range}</p>}
+              {data.labTests.map((t: any) => (
+                <div key={t.id} className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{t.testName}</p>
+                      <p className="text-xs text-gray-500">{t.testDate ? new Date(t.testDate).toLocaleDateString() : ''}</p>
+                      {t.doctorNotes && <p className="text-xs text-gray-400 mt-1">{t.doctorNotes}</p>}
                     </div>
-                  )}
+                    {t.results && (
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-gray-900">{t.results}</p>
+                        {t.normalRange && <p className="text-[10px] text-gray-400">Normal: {t.normalRange}</p>}
+                      </div>
+                    )}
+                  </div>
+                  <DocumentsList 
+                    documents={t.documents || []} 
+                    imageUrls={imageUrls} 
+                    onDownload={handleDownload} 
+                    onView={handleView}
+                  />
                 </div>
               ))}
             </div>
@@ -171,20 +285,21 @@ const SharedProfileView: React.FC<SharedProfileViewProps> = ({ token }) => {
         )}
 
         {/* Radiology */}
-        {data?.radiology_scans?.length > 0 && (
-          <Section title={`Radiology (${data.radiology_scans.length})`} icon={ScanLine} color="text-purple-700">
+        {data?.radiologyScans?.length > 0 && (
+          <Section title={`Radiology (${data.radiologyScans.length})`} icon={ScanLine} color="text-purple-700">
             <div className="space-y-3">
-              {data.radiology_scans.map((s: any) => (
+              {data.radiologyScans.map((s: any) => (
                 <div key={s.id} className="p-3 bg-gray-50 rounded-lg">
-                  <p className="text-sm font-medium text-gray-900">{s.scan_type} {s.body_part && `- ${s.body_part}`}</p>
-                  <p className="text-xs text-gray-500">{s.scan_date ? new Date(s.scan_date).toLocaleDateString() : ''}</p>
+                  <p className="text-sm font-medium text-gray-900">{s.scanType} {s.bodyPart && `- ${s.bodyPart}`}</p>
+                  <p className="text-xs text-gray-500">{s.scanDate ? new Date(s.scanDate).toLocaleDateString() : ''}</p>
                   {s.description && <p className="text-xs text-gray-600 mt-1">{s.description}</p>}
-                  {s.doctor_notes && <p className="text-xs text-purple-600 mt-1">Doctor: {s.doctor_notes}</p>}
-                  {s.image_url && (
-                    <a href={s.image_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 flex items-center gap-1 mt-1">
-                      <ExternalLink className="w-3 h-3" /> View Image
-                    </a>
-                  )}
+                  {s.doctorNotes && <p className="text-xs text-purple-600 mt-1">Doctor: {s.doctorNotes}</p>}
+                  <DocumentsList 
+                    documents={s.documents || []} 
+                    imageUrls={imageUrls} 
+                    onDownload={handleDownload} 
+                    onView={handleView}
+                  />
                 </div>
               ))}
             </div>
@@ -198,12 +313,18 @@ const SharedProfileView: React.FC<SharedProfileViewProps> = ({ token }) => {
               {data.diagnoses.map((d: any) => (
                 <div key={d.id} className="p-3 bg-gray-50 rounded-lg">
                   <p className="text-sm font-medium text-gray-900 flex items-center gap-2">
-                    {d.diagnosis_name}
+                    {d.diagnosisName}
                     <span className={`text-[10px] px-2 py-0.5 rounded-full ${d.status === 'active' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{d.status}</span>
                   </p>
-                  {d.doctor_name && <p className="text-xs text-gray-500">Dr. {d.doctor_name}</p>}
-                  {d.date_diagnosed && <p className="text-xs text-gray-400">{new Date(d.date_diagnosed).toLocaleDateString()}</p>}
-                  {d.notes && <p className="text-xs text-gray-400 mt-1">{d.notes}</p>}
+                  {d.diagnosedBy && <p className="text-xs text-gray-500">Dr. {d.diagnosedBy}</p>}
+                  {d.diagnosisDate && <p className="text-xs text-gray-400">{new Date(d.diagnosisDate).toLocaleDateString()}</p>}
+                  {d.description && <p className="text-xs text-gray-400 mt-1">{d.description}</p>}
+                  <DocumentsList 
+                    documents={d.documents || []} 
+                    imageUrls={imageUrls} 
+                    onDownload={handleDownload} 
+                    onView={handleView}
+                  />
                 </div>
               ))}
             </div>
@@ -216,13 +337,19 @@ const SharedProfileView: React.FC<SharedProfileViewProps> = ({ token }) => {
             <div className="space-y-3">
               {data.surgeries.map((s: any) => (
                 <div key={s.id} className="p-3 bg-gray-50 rounded-lg">
-                  <p className="text-sm font-medium text-gray-900">{s.surgery_name}</p>
+                  <p className="text-sm font-medium text-gray-900">{s.surgeryName}</p>
                   <div className="flex gap-3 text-xs text-gray-500 mt-1">
-                    {s.hospital_name && <span>{s.hospital_name}</span>}
-                    {s.surgeon_name && <span>Dr. {s.surgeon_name}</span>}
-                    {s.surgery_date && <span>{new Date(s.surgery_date).toLocaleDateString()}</span>}
+                    {s.hospitalName && <span>{s.hospitalName}</span>}
+                    {s.surgeonName && <span>Dr. {s.surgeonName}</span>}
+                    {s.surgeryDate && <span>{new Date(s.surgeryDate).toLocaleDateString()}</span>}
                   </div>
-                  {s.notes && <p className="text-xs text-gray-400 mt-1">{s.notes}</p>}
+                  {s.description && <p className="text-xs text-gray-400 mt-1">{s.description}</p>}
+                  <DocumentsList 
+                    documents={s.documents || []} 
+                    imageUrls={imageUrls} 
+                    onDownload={handleDownload} 
+                    onView={handleView}
+                  />
                 </div>
               ))}
             </div>
