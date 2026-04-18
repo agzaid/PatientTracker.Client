@@ -1,7 +1,6 @@
-import axios, { AxiosInstance } from 'axios';
+import axios from 'axios';
 import { languageApi } from './languageApi';
-
-const API_BASE_URL = 'https://localhost:62427/api';
+import apiClient from './apiClient';
 
 export interface RegisterRequest {
   email: string;
@@ -43,11 +42,7 @@ export interface ApiError {
 export const authApi = {
   async register(request: RegisterRequest): Promise<AuthResponse> {
     try {
-      const response = await axios.post<AuthResponse>(`${API_BASE_URL}/auth/register`, request, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await apiClient.post<AuthResponse>('/auth/register', request);
       return response.data;
     } catch (error: any) {
       if (axios.isAxiosError(error) && error.response?.data) {
@@ -59,13 +54,7 @@ export const authApi = {
 
   async login(request: LoginRequest): Promise<AuthResponse> {
     try {
-      debugger;
-      const response = await axios.post<AuthResponse>(`${API_BASE_URL}/auth/login`, request, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      debugger;
+      const response = await apiClient.post<AuthResponse>('/auth/login', request);
       console.log('Raw API response:', response.data);
       return response.data;
     } catch (error: any) {

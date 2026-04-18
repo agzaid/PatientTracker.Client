@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { timelineApi, type TimelineItemDto } from '@/services/timelineApi';
+import { PaginatedResponse } from '@/interfaces/pagination';
+import Pagination from './Pagination';
 import { toast } from 'sonner';
 import { Calendar, Filter, Clock, Pill, FlaskConical, Activity, Heart, Scissors, FileText } from 'lucide-react';
 
@@ -12,20 +14,26 @@ const TimelinePanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 10;
 
   useEffect(() => {
     if (user) fetchTimeline();
-  }, [user, typeFilter, dateRange]);
+  }, [user, currentPage, typeFilter, dateRange]);
 
   const fetchTimeline = async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const items = await timelineApi.getTimeline(typeFilter, dateRange);
-      setTimelineItems(items);
+      const response = await timelineApi.getTimeline(currentPage, pageSize, typeFilter, dateRange);
+      setTimelineItems(response.items);
+      setTotalPages(Math.ceil(response.totalCount / pageSize));
+      setTotalCount(response.totalCount);
     } catch (error: any) {
       console.error('Failed to fetch timeline:', error);
-      toast.error(error.error || t('timeline.fetchError'));
+      toast.error(t('timeline.fetchError'));
     }
     setLoading(false);
   };
@@ -188,6 +196,15 @@ const TimelinePanel: React.FC = () => {
           )}
         </div>
       )}
+      
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        loading={loading}
+      />
     </div>
   );
 };

@@ -3,6 +3,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import Swal from 'sweetalert2';
 import { labTestApi, type LabTestDto, type CreateLabTestRequest, type UpdateLabTestRequest } from '@/services/labTestApi';
+import { PaginatedResponse } from '@/interfaces/pagination';
+import Pagination from './Pagination';
 import { documentApi, DocumentType, ParentEntityType } from '@/services/documentApi';
 import { toast } from 'sonner';
 import RecordModal, { FieldConfig } from './RecordModal';
@@ -22,23 +24,29 @@ const labFields: FieldConfig[] = [
 const LabTestsPanel: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [tests, setTests] = useState<LabTestDto[]>([]);
+  const [labTests, setLabTests] = useState<LabTestDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<LabTestDto | null>(null);
   const [viewItem, setViewItem] = useState<LabTestDto | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 10;
 
   useEffect(() => {
     if (user) fetchTests();
-  }, [user]);
+  }, [user, currentPage, search]);
 
   const fetchTests = async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const labTests = await labTestApi.getLabTests();
-      setTests(labTests);
+      const response = await labTestApi.getLabTests(currentPage, pageSize, search);
+      setLabTests(response.items);
+      setTotalPages(Math.ceil(response.totalCount / pageSize));
+      setTotalCount(response.totalCount);
     } catch (error: any) {
       console.error('Failed to fetch lab tests:', error);
       toast.error(error.error || t('labTests.fetchError'));
@@ -145,8 +153,8 @@ const LabTestsPanel: React.FC = () => {
     return map[status] || map.normal;
   };
 
-  const filtered = tests.filter(t =>
-    !search || t.testName.toLowerCase().includes(search.toLowerCase()) || (t.notes || '').toLowerCase().includes(search.toLowerCase())
+  const filtered = labTests.filter(t =>
+    !search || t.testName.toLowerCase().includes(search.toLowerCase()) || (t.doctorNotes || '').toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -156,7 +164,7 @@ const LabTestsPanel: React.FC = () => {
           <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             <FlaskConical className="w-5 h-5 text-amber-600" /> {t('labTests.title')}
           </h2>
-          <p className="text-sm text-gray-500">{tests.length} {t('labTests.testRecords')}</p>
+          <p className="text-sm text-gray-500">{labTests.length} {t('labTests.testRecords')}</p>
         </div>
         <button
           onClick={() => { setEditItem(null); setShowModal(true); }}
@@ -216,7 +224,7 @@ const LabTestsPanel: React.FC = () => {
                       <p className="text-xs text-gray-400 mt-1">
                         {test.testDate ? new Date(test.testDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : t('common.noDate')}
                       </p>
-                      {test.notes && <p className="text-xs text-gray-500 mt-2 bg-gray-50 rounded-lg p-2">{test.notes}</p>}
+                      {test.doctorNotes && <p className="text-xs text-gray-500 mt-2 bg-gray-50 rounded-lg p-2">{test.doctorNotes}</p>}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -258,8 +266,6 @@ const LabTestsPanel: React.FC = () => {
           test_name: editItem.testName,
           test_type: editItem.testType,
           test_date: editItem.testDate,
-          ordered_by: editItem.orderedBy,
-          facility: editItem.facility,
           result_value: editItem.results?.split(' ')[0],
           result_unit: editItem.results?.split(' ')[1],
           normal_range: editItem.normalRange
@@ -279,6 +285,15 @@ const LabTestsPanel: React.FC = () => {
         title={t('labTests.viewLabTest')}
         type="labTest"
         data={viewItem}
+      />
+      
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        loading={loading}
       />
     </div>
   );

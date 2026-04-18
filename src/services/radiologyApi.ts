@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { PaginatedResponse } from '@/interfaces/pagination';
 
 // Radiology scan interfaces matching backend DTOs
 export interface RadiologyScanDto {
@@ -32,10 +33,19 @@ export interface UpdateRadiologyScanRequest {
 }
 
 const radiologyApi = {
-  // Get all radiology scans for the current user
-  getRadiologyScans: async (): Promise<RadiologyScanDto[]> => {
-    const response = await apiClient.get<RadiologyScanDto[]>('/radiology');
-    return response.data;
+  // Get radiology scans for the current user with pagination
+  getRadiologyScans: async (page: number = 1, pageSize: number = 10, search?: string): Promise<PaginatedResponse<RadiologyScanDto>> => {
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('pageSize', pageSize.toString());
+    if (search) params.append('search', search);
+    
+    try {
+      const response = await apiClient.get<PaginatedResponse<RadiologyScanDto>>(`/radiology?${params.toString()}`);
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || { error: 'Failed to fetch radiology scans' };
+    }
   },
 
   // Get a specific radiology scan by ID

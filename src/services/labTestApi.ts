@@ -1,20 +1,19 @@
 import apiClient from './apiClient';
+import { PaginatedResponse } from '@/interfaces/pagination';
 
 // Lab test interfaces matching backend DTOs
 export interface LabTestDto {
   id: number;
   userId: number;
   testName: string;
-  testType?: string;
   testDate: string;
-  orderedBy?: string;
-  facility?: string;
+  testType?: string;
   results?: string;
   normalRange?: string;
-  status: string;
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
+  status?: string;
+  doctorNotes?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CreateLabTestRequest {
@@ -52,9 +51,15 @@ export interface ApiError {
 }
 
 export const labTestApi = {
-  async getLabTests(): Promise<LabTestDto[]> {
+  // Get lab tests for the current user with pagination
+  getLabTests: async (page: number = 1, pageSize: number = 10, search?: string): Promise<PaginatedResponse<LabTestDto>> => {
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('pageSize', pageSize.toString());
+    if (search) params.append('search', search);
+    
     try {
-      const response = await apiClient.get<LabTestDto[]>('/labtests');
+      const response = await apiClient.get<PaginatedResponse<LabTestDto>>(`/labtests?${params.toString()}`);
       return response.data;
     } catch (error: any) {
       throw error.response?.data || { error: 'Failed to fetch lab tests' };

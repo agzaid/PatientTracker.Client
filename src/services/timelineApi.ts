@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { PaginatedResponse } from '@/interfaces/pagination';
 
 // Timeline interfaces matching backend DTOs
 export interface TimelineItemDto {
@@ -14,13 +15,16 @@ export interface TimelineItemDto {
 }
 
 const timelineApi = {
-  // Get timeline items for the current user with optional filters
-  getTimeline: async (typeFilter?: string, dateRange?: string): Promise<TimelineItemDto[]> => {
+  // Get timeline items for the current user with optional filters and pagination
+  getTimeline: async (page: number = 1, pageSize: number = 10, typeFilter?: string, dateRange?: string, search?: string): Promise<PaginatedResponse<TimelineItemDto>> => {
     const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('pageSize', pageSize.toString());
     if (typeFilter) params.append('typeFilter', typeFilter);
     if (dateRange) params.append('dateRange', dateRange);
+    if (search) params.append('search', search);
     
-    const response = await apiClient.get<TimelineItemDto[]>(`/timeline?${params.toString()}`);
+    const response = await apiClient.get<PaginatedResponse<TimelineItemDto>>(`/timeline?${params.toString()}`);
     return response.data;
   },
 };

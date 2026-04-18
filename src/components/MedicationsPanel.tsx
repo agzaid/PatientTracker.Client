@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import Swal from 'sweetalert2';
-import { medicationApi, type MedicationDto, type CreateMedicationRequest, type UpdateMedicationRequest } from '@/services/medicationApi';
+import { medicationApi, type MedicationDto, type CreateMedicationRequest, type UpdateMedicationRequest, type PaginatedMedicationsResponse } from '@/services/medicationApi';
 import { documentApi, DocumentType, ParentEntityType } from '@/services/documentApi';
 import { toast } from 'sonner';
 import RecordModal, { FieldConfig } from './RecordModal';
@@ -29,17 +29,42 @@ const MedicationsPanel: React.FC = () => {
   const [editItem, setEditItem] = useState<MedicationDto | null>(null);
   const [viewItem, setViewItem] = useState<MedicationDto | null>(null);
   const [filter, setFilter] = useState<'all' | 'current' | 'past'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 10;
 
   useEffect(() => {
     if (user) fetchMedications();
-  }, [user]);
+  }, [user, currentPage, search, filter]);
 
   const fetchMedications = async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const medications = await medicationApi.getMedications();
-      setMedications(medications);
+      const response = await medicationApi.getMedications(currentPage, pageSize, search);
+      let filteredItems = response.items;
+      
+      // Apply filter on frontend since backend doesn't support filter parameter
+      if (filter === 'current') {
+        filteredItems = response.items.filter(m => m.isCurrent);
+      } else if (filter === 'past') {
+        filteredItems = response.items.filter(m => !m.isCurrent);
+      }
+      
+      const calculatedTotalPages = Math.ceil(response.totalCount / pageSize);
+      console.log('Pagination debug:', {
+        currentPage,
+        pageSize,
+        totalCount: response.totalCount,
+        totalPages: calculatedTotalPages,
+        itemsCount: response.items.length,
+        filteredCount: filteredItems.length
+      });
+      
+      setMedications(filteredItems);
+      setTotalPages(calculatedTotalPages);
+      setTotalCount(response.totalCount);
     } catch (error: any) {
       console.error('Failed to fetch medications:', error);
       toast.error(error.error || t('medications.fetchError'));
@@ -180,14 +205,14 @@ const MedicationsPanel: React.FC = () => {
         <div className="flex items-center justify-center h-32">
           <div className="w-8 h-8 border-3 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : medications.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-100 p-8 text-center">
           <Pill className="w-12 h-12 text-gray-200 mx-auto mb-3" />
           <p className="text-gray-500 text-sm">{t('medications.noMedications')}</p>
         </div>
       ) : (
         <div className="grid gap-3">
-          {filtered.map(med => (
+          {medications.map(med => (
             <div key={med.id} className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3">
@@ -274,6 +299,65 @@ const MedicationsPanel: React.FC = () => {
         type="medication"
         data={viewItem}
       />
+    {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div className="flex items-center justify-between mt-6">
+          <div className="text-sm text-gray-700">
+            {t('common.showing', { 
+              start: (currentPage - 1) * pageSize + 1,
+              end: Math.min(currentPage * pageSize, totalCount),
+              total: totalCount
+            })}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {t('common.previous')}
+            </button>
+            
+            {/* Page numbers */}
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`w-8 h-8 rounded-lg text-sm font-medium ${
+                      currentPage === pageNum
+                        ? 'bg-blue-600 text-white'
+                        : 'border border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {t('common.next')}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

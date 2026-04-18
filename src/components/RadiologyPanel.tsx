@@ -3,6 +3,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import Swal from 'sweetalert2';
 import { radiologyApi, type RadiologyScanDto, type CreateRadiologyScanRequest, type UpdateRadiologyScanRequest } from '@/services/radiologyApi';
+import { PaginatedResponse } from '@/interfaces/pagination';
+import Pagination from './Pagination';
 import { documentApi, DocumentType, ParentEntityType } from '@/services/documentApi';
 import { toast } from 'sonner';
 import RecordModal, { FieldConfig } from './RecordModal';
@@ -26,17 +28,23 @@ const RadiologyPanel: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<RadiologyScanDto | null>(null);
   const [viewItem, setViewItem] = useState<RadiologyScanDto | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 10;
 
   useEffect(() => {
     if (user) fetchScans();
-  }, [user]);
+  }, [user, currentPage, search]);
 
   const fetchScans = async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const radiologyScans = await radiologyApi.getRadiologyScans();
-      setScans(radiologyScans);
+      const response = await radiologyApi.getRadiologyScans(currentPage, pageSize, search);
+      setScans(response.items);
+      setTotalPages(Math.ceil(response.totalCount / pageSize));
+      setTotalCount(response.totalCount);
     } catch (error: any) {
       console.error('Failed to fetch radiology scans:', error);
       toast.error(error.error || t('radiology.fetchError'));
@@ -129,8 +137,8 @@ const RadiologyPanel: React.FC = () => {
   };
 
   const filteredScans = scans.filter(scan => 
-    scan.scanType.toLowerCase().includes(search.toLowerCase()) ||
-    scan.bodyPart.toLowerCase().includes(search.toLowerCase()) ||
+    scan.scanType?.toLowerCase().includes(search.toLowerCase()) ||
+    scan.bodyPart?.toLowerCase().includes(search.toLowerCase()) ||
     scan.description?.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -249,6 +257,15 @@ const RadiologyPanel: React.FC = () => {
         title={t('radiology.viewScan')}
         type="radiology"
         data={viewItem}
+      />
+      
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        loading={loading}
       />
     </div>
   );

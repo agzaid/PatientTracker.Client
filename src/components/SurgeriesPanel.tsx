@@ -3,6 +3,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import Swal from 'sweetalert2';
 import { surgeryApi, type SurgeryDto, type CreateSurgeryRequest, type UpdateSurgeryRequest } from '@/services/surgeryApi';
+import { PaginatedResponse } from '@/interfaces/pagination';
+import Pagination from './Pagination';
 import { documentApi, DocumentType, ParentEntityType } from '@/services/documentApi';
 import { toast } from 'sonner';
 import RecordModal, { FieldConfig } from './RecordModal';
@@ -26,21 +28,27 @@ const SurgeriesPanel: React.FC = () => {
   const { user } = useAuth();
   const [surgeries, setSurgeries] = useState<SurgeryDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<SurgeryDto | null>(null);
   const [viewItem, setViewItem] = useState<SurgeryDto | null>(null);
-  const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 10;
 
   useEffect(() => {
     if (user) fetchSurgeries();
-  }, [user]);
+  }, [user, currentPage, search]);
 
   const fetchSurgeries = async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const surgeryData = await surgeryApi.getSurgeries();
-      setSurgeries(surgeryData);
+      const response = await surgeryApi.getSurgeries(currentPage, pageSize, search);
+      setSurgeries(response.items);
+      setTotalPages(Math.ceil(response.totalCount / pageSize));
+      setTotalCount(response.totalCount);
     } catch (error: any) {
       console.error('Failed to fetch surgeries:', error);
       toast.error(error.error || t('surgeries.fetchError'));
@@ -272,6 +280,15 @@ const SurgeriesPanel: React.FC = () => {
         title={t('surgeries.viewSurgery')}
         type="surgery"
         data={viewItem}
+      />
+      
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        loading={loading}
       />
     </div>
   );

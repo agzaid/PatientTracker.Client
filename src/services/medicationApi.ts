@@ -48,10 +48,24 @@ export interface ApiError {
   }>;
 }
 
+// Pagination response interface
+export interface PaginatedMedicationsResponse {
+  items: MedicationDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
 export const medicationApi = {
-  async getMedications(): Promise<MedicationDto[]> {
+  // Get medications for the current user with pagination
+  async getMedications(page: number = 1, pageSize: number = 10, search?: string): Promise<PaginatedMedicationsResponse> {
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('pageSize', pageSize.toString());
+    if (search) params.append('search', search);
+    
     try {
-      const response = await apiClient.get<MedicationDto[]>('/medications');
+      const response = await apiClient.get<PaginatedMedicationsResponse>(`/medications?${params.toString()}`);
       return response.data;
     } catch (error: any) {
       throw error.response?.data || { error: 'Failed to fetch medications' };

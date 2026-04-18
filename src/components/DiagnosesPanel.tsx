@@ -3,6 +3,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import Swal from 'sweetalert2';
 import { diagnosisApi, type DiagnosisDto, type CreateDiagnosisRequest, type UpdateDiagnosisRequest } from '@/services/diagnosisApi';
+import { PaginatedResponse } from '@/interfaces/pagination';
+import Pagination from './Pagination';
 import { documentApi, DocumentType, ParentEntityType } from '@/services/documentApi';
 import { toast } from 'sonner';
 import RecordModal, { FieldConfig } from './RecordModal';
@@ -25,22 +27,35 @@ const DiagnosesPanel: React.FC = () => {
   const { user } = useAuth();
   const [diagnoses, setDiagnoses] = useState<DiagnosisDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<DiagnosisDto | null>(null);
   const [viewItem, setViewItem] = useState<DiagnosisDto | null>(null);
-  const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 10;
   const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
     if (user) fetchDiagnoses();
-  }, [user]);
+  }, [user, currentPage, search, statusFilter]);
 
   const fetchDiagnoses = async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const diagnosisData = await diagnosisApi.getDiagnoses();
-      setDiagnoses(diagnosisData);
+      const response = await diagnosisApi.getDiagnoses(currentPage, pageSize, search);
+      let filteredItems = response.items;
+      
+      // Apply status filter on frontend
+      if (statusFilter !== 'all') {
+        filteredItems = response.items.filter(d => d.status === statusFilter);
+      }
+      
+      setDiagnoses(filteredItems);
+      setTotalPages(Math.ceil(response.totalCount / pageSize));
+      setTotalCount(response.totalCount);
     } catch (error: any) {
       console.error('Failed to fetch diagnoses:', error);
       toast.error(error.error || t('diagnoses.fetchError'));
@@ -296,6 +311,15 @@ const DiagnosesPanel: React.FC = () => {
         title={t('diagnoses.viewDiagnosis')}
         type="diagnosis"
         data={viewItem}
+      />
+      
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        loading={loading}
       />
     </div>
   );

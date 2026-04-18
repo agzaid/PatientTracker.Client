@@ -7,6 +7,7 @@ import { radiologyApi } from '@/services/radiologyApi';
 import { diagnosisApi } from '@/services/diagnosisApi';
 import { surgeryApi } from '@/services/surgeryApi';
 import { profileApi } from '@/services/profileApi';
+import Pagination from './Pagination';
 import type { ViewType } from './Sidebar';
 import { toast } from 'sonner';
 import {
@@ -33,9 +34,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const { user } = useAuth();
   const [stats, setStats] = useState<Stats>({ medications: 0, currentMeds: 0, labTests: 0, scans: 0, diagnoses: 0, surgeries: 0 });
   const [recentItems, setRecentItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   const handleExportPDF = async () => {
     if (!user) {
@@ -63,45 +66,51 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     setLoading(true);
     try {
       // Fetch all medical records using the new APIs
-      const [medications, labTests, radiologyScans, diagnoses, surgeries] = await Promise.all([
-        medicationApi.getMedications(),
-        labTestApi.getLabTests(),
-        radiologyApi.getRadiologyScans(),
-        diagnosisApi.getDiagnoses(),
-        surgeryApi.getSurgeries()
+      // For all APIs, we need to get all items for dashboard stats, so use a large page size
+      const [medicationResponse, labTestResponse, radiologyResponse, diagnosisResponse, surgeryResponse] = await Promise.all([
+        medicationApi.getMedications(1, 100), // Get all medications for dashboard
+        labTestApi.getLabTests(1, 100), // Get all lab tests for dashboard
+        radiologyApi.getRadiologyScans(1, 100), // Get all radiology scans for dashboard
+        diagnosisApi.getDiagnoses(1, 100), // Get all diagnoses for dashboard
+        surgeryApi.getSurgeries(1, 100) // Get all surgeries for dashboard
       ]);
+      const medications = medicationResponse.items;
+      const labTests = labTestResponse.items;
+      const radiologyScans = radiologyResponse.items;
+      const diagnoses = diagnosisResponse.items;
+      const surgeries = surgeryResponse.items;
       const currentMeds = medications.filter(m => m.isCurrent).length;
       
       // Fetch profile using the new API
       const profile = await profileApi.getProfile();
       
       setStats({
-        medications: medications.length,
+        medications: medicationResponse.totalCount,
         currentMeds,
-        labTests: labTests.length,
-        scans: radiologyScans.length,
-        diagnoses: diagnoses.length,
-        surgeries: surgeries.length,
+        labTests: labTestResponse.totalCount,
+        scans: radiologyResponse.totalCount,
+        diagnoses: diagnosisResponse.totalCount,
+        surgeries: surgeryResponse.totalCount,
       });
       setProfile(profile);
 
       // Build recent items from all medical records
       const items: any[] = [];
-      medications.slice(0, 8).forEach(m => items.push({ 
+      medications.slice(0, 10).forEach(m => items.push({ 
         ...m, 
         type: 'medication', 
         date: m.startDate,
         is_current: m.isCurrent
       }));
       
-      labTests.slice(0, 8).forEach(l => items.push({ 
+      labTests.slice(0, 10).forEach(l => items.push({ 
         ...l, 
         type: 'lab_test', 
         date: l.testDate,
         test_name: l.testName
       }));
       
-      radiologyScans.slice(0, 8).forEach(r => items.push({ 
+      radiologyScans.slice(0, 10).forEach(r => items.push({ 
         ...r, 
         type: 'radiology_scan', 
         date: r.scanDate,
@@ -109,14 +118,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         body_part: r.bodyPart
       }));
       
-      diagnoses.slice(0, 8).forEach(d => items.push({ 
+      diagnoses.slice(0, 10).forEach(d => items.push({ 
         ...d, 
         type: 'diagnosis', 
         date: d.diagnosisDate,
         diagnosis_name: d.diagnosisName
       }));
       
-      surgeries.slice(0, 8).forEach(s => items.push({ 
+      surgeries.slice(0, 10).forEach(s => items.push({ 
         ...s, 
         type: 'surgery', 
         date: s.surgeryDate,
@@ -125,7 +134,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       
       // Sort by date (newest first)
       items.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
-      setRecentItems(items.slice(0, 8));
+      setRecentItems(items);
     } catch (err) {
       console.error(err);
       toast.error(t('dashboard.fetchError'));
@@ -176,6 +185,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     };
     return badges[type] || { label: type, color: 'bg-gray-100 text-gray-700' };
   };
+
+  // Calculate paginated items for display
+  const totalPages = Math.ceil(recentItems.length / pageSize);
+  const paginatedItems = recentItems.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   const quickActions = [
     { label: t('dashboard.addMedication'), icon: Pill, view: 'medications' as ViewType, color: 'bg-emerald-500' },
@@ -286,11 +302,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
       {/* Recent Activity */}
       <div className="bg-white rounded-xl border border-gray-100">
-        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="p-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-900">{t('dashboard.recentActivity')}</h2>
-          <button onClick={() => onNavigate('timeline')} className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
-            {t('dashboard.viewAll')} <ArrowRight className="w-3 h-3" />
-          </button>
         </div>
         {recentItems.length === 0 ? (
           <div className="p-8 text-center">
@@ -304,8 +317,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </button>
           </div>
         ) : (
-          <div className="divide-y divide-gray-50">
-            {recentItems.map((item, i) => {
+          <>
+            <div className="divide-y divide-gray-50">
+              {paginatedItems.map((item, i) => {
               const badge = getItemBadge(item.type);
               const isActive = item.type === 'medication' ? item.is_current : undefined;
               return (
@@ -328,6 +342,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               );
             })}
           </div>
+          
+          {recentItems.length > 0 && (
+            <div className="p-4 border-t border-gray-100">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalCount={recentItems.length}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                loading={loading}
+              />
+            </div>
+          )}
+        </>
         )}
       </div>
 

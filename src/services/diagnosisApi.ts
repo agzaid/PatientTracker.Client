@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { PaginatedResponse } from '@/interfaces/pagination';
 
 // Diagnosis interfaces matching backend DTOs
 export interface DiagnosisDto {
@@ -6,14 +7,14 @@ export interface DiagnosisDto {
   userId: number;
   diagnosisName: string;
   diagnosisDate: string;
-  description?: string;
+  diagnosedBy?: string;
   severity?: string;
   status?: string;
-  diagnosedBy?: string;
   hospitalName?: string;
+  description?: string;
   treatmentPlan?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CreateDiagnosisRequest {
@@ -41,10 +42,19 @@ export interface UpdateDiagnosisRequest {
 }
 
 const diagnosisApi = {
-  // Get all diagnoses for the current user
-  getDiagnoses: async (): Promise<DiagnosisDto[]> => {
-    const response = await apiClient.get<DiagnosisDto[]>('/diagnoses');
-    return response.data;
+  // Get diagnoses for the current user with pagination
+  getDiagnoses: async (page: number = 1, pageSize: number = 10, search?: string): Promise<PaginatedResponse<DiagnosisDto>> => {
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('pageSize', pageSize.toString());
+    if (search) params.append('search', search);
+    
+    try {
+      const response = await apiClient.get<PaginatedResponse<DiagnosisDto>>(`/diagnoses?${params.toString()}`);
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || { error: 'Failed to fetch diagnoses' };
+    }
   },
 
   // Get a specific diagnosis by ID

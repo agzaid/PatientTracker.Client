@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { PaginatedResponse } from '@/interfaces/pagination';
 
 // Surgery interfaces matching backend DTOs
 export interface SurgeryDto {
@@ -6,15 +7,15 @@ export interface SurgeryDto {
   userId: number;
   surgeryName: string;
   surgeryDate: string;
-  surgeonName?: string;
   hospitalName?: string;
+  surgeonName?: string;
   surgeryType?: string;
   description?: string;
   complications?: string;
   outcome?: string;
   followUpDate?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CreateSurgeryRequest {
@@ -44,10 +45,19 @@ export interface UpdateSurgeryRequest {
 }
 
 const surgeryApi = {
-  // Get all surgeries for the current user
-  getSurgeries: async (): Promise<SurgeryDto[]> => {
-    const response = await apiClient.get<SurgeryDto[]>('/surgeries');
-    return response.data;
+  // Get surgeries for the current user with pagination
+  getSurgeries: async (page: number = 1, pageSize: number = 10, search?: string): Promise<PaginatedResponse<SurgeryDto>> => {
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('pageSize', pageSize.toString());
+    if (search) params.append('search', search);
+    
+    try {
+      const response = await apiClient.get<PaginatedResponse<SurgeryDto>>(`/surgeries?${params.toString()}`);
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || { error: 'Failed to fetch surgeries' };
+    }
   },
 
   // Get a specific surgery by ID
