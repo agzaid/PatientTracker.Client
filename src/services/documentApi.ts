@@ -90,6 +90,51 @@ export const documentApi = {
     }
   },
 
+  async uploadDocumentList(
+    files: File[],
+    documentType: DocumentType = DocumentType.General,
+    parentEntityType: ParentEntityType = ParentEntityType.None,
+    parentEntityId?: number,
+    maxWidth?: number,
+    maxHeight?: number
+  ): Promise<DocumentDto[]> {
+    const formData = new FormData();
+    
+    // Add all files
+    files.forEach((file, index) => {
+      formData.append(`files`, file);
+    });
+    
+    formData.append('documentType', documentType.toString());
+    formData.append('parentEntityType', parentEntityType.toString());
+    
+    if (parentEntityId !== undefined) {
+      formData.append('parentEntityId', parentEntityId.toString());
+    }
+    
+    if (maxWidth !== undefined) {
+      formData.append('maxWidth', maxWidth.toString());
+    }
+    
+    if (maxHeight !== undefined) {
+      formData.append('maxHeight', maxHeight.toString());
+    }
+
+    try {
+      const response = await apiClient.post<DocumentDto[]>('/documents/list', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.data) {
+        throw error.response.data;
+      }
+      throw { error: 'Failed to upload documents' };
+    }
+  },
+
   async getUserDocuments(): Promise<DocumentDto[]> {
     try {
       const response = await apiClient.get<DocumentDto[]>('/documents');

@@ -6,16 +6,17 @@ import { medicationApi, type MedicationDto, type CreateMedicationRequest, type U
 import { documentApi, DocumentType, ParentEntityType } from '@/services/documentApi';
 import { toast } from 'sonner';
 import RecordModal, { FieldConfig } from './RecordModal';
-import { Plus, Pill, Search, Trash2, Edit2, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
+import ViewModal from './ViewModal';
+import { Plus, Pill, Search, Trash2, Edit2, ExternalLink, CheckCircle2, XCircle, Eye } from 'lucide-react';
 
 const medicationFields: FieldConfig[] = [
-  { name: 'name', label: 'Medication Name', type: 'text', placeholder: 'e.g., Metformin', required: true },
-  { name: 'dosage', label: 'Dosage', type: 'text', placeholder: 'e.g., 500mg twice daily' },
-  { name: 'frequency', label: 'Frequency', type: 'select', options: ['Once daily', 'Twice daily', 'Three times daily', 'As needed', 'Weekly', 'Monthly', 'Other'] },
-  { name: 'start_date', label: 'Start Date', type: 'date' },
-  { name: 'end_date', label: 'End Date', type: 'date' },
-  { name: 'is_current', label: 'Currently Taking', type: 'checkbox', placeholder: 'This medication is currently active' },
-  { name: 'notes', label: 'Notes', type: 'textarea', placeholder: 'Additional notes about this medication...' },
+  { name: 'name', label: 'medications.medicationName', type: 'text', placeholder: 'medications.medicationNamePlaceholder', required: true },
+  { name: 'dosage', label: 'medications.dosage', type: 'text', placeholder: 'medications.dosagePlaceholder' },
+  { name: 'frequency', label: 'medications.frequency', type: 'select', options: ['Once daily', 'Twice daily', 'Three times daily', 'As needed', 'Weekly', 'Monthly', 'Other'] },
+  { name: 'start_date', label: 'medications.startDate', type: 'date' },
+  { name: 'end_date', label: 'medications.endDate', type: 'date' },
+  { name: 'is_current', label: 'medications.active', type: 'checkbox', placeholder: 'medications.currentlyActive' },
+  { name: 'notes', label: 'common.notes', type: 'textarea', placeholder: 'medications.notesPlaceholder' },
 ];
 
 const MedicationsPanel: React.FC = () => {
@@ -23,10 +24,11 @@ const MedicationsPanel: React.FC = () => {
   const { user } = useAuth();
   const [medications, setMedications] = useState<MedicationDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<MedicationDto | null>(null);
+  const [viewItem, setViewItem] = useState<MedicationDto | null>(null);
   const [filter, setFilter] = useState<'all' | 'current' | 'past'>('all');
-  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (user) fetchMedications();
@@ -215,8 +217,19 @@ const MedicationsPanel: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  <button 
+                    onClick={() => setViewItem(med)} 
+                    className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 hover:text-gray-800 transition"
+                    title={t('common.view')}
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
                   {med.prescriptionUrl && (
-                    <button onClick={() => handlePrescriptionDownload(med)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-500 transition" title={t('medications.downloadPrescription')}>
+                    <button 
+                      onClick={() => handlePrescriptionDownload(med)} 
+                      className="p-2 rounded-lg hover:bg-blue-50 text-blue-500 transition"
+                      title={t('medications.downloadPrescription')}
+                    >
                       <ExternalLink className="w-4 h-4" />
                     </button>
                   )}
@@ -251,7 +264,15 @@ const MedicationsPanel: React.FC = () => {
         existingFileUrl={editItem?.prescriptionUrl}
         documentType={DocumentType.Prescription}
         parentEntityType={ParentEntityType.Medication}
-        parentEntityId={editItem?.id}
+        parentEntityId={editItem ? editItem.id : undefined}
+      />
+      
+      <ViewModal
+        isOpen={!!viewItem}
+        onClose={() => setViewItem(null)}
+        title={t('medications.viewMedication')}
+        type="medication"
+        data={viewItem}
       />
     </div>
   );

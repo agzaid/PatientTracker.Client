@@ -2,6 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { medicationApi } from '@/services/medicationApi';
+import { labTestApi } from '@/services/labTestApi';
+import { radiologyApi } from '@/services/radiologyApi';
+import { diagnosisApi } from '@/services/diagnosisApi';
+import { surgeryApi } from '@/services/surgeryApi';
 import { profileApi } from '@/services/profileApi';
 import type { ViewType } from './Sidebar';
 import { toast } from 'sonner';
@@ -58,8 +62,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     if (!user) return;
     setLoading(true);
     try {
-      // Fetch medications using the new API
-      const medications = await medicationApi.getMedications();
+      // Fetch all medical records using the new APIs
+      const [medications, labTests, radiologyScans, diagnoses, surgeries] = await Promise.all([
+        medicationApi.getMedications(),
+        labTestApi.getLabTests(),
+        radiologyApi.getRadiologyScans(),
+        diagnosisApi.getDiagnoses(),
+        surgeryApi.getSurgeries()
+      ]);
       const currentMeds = medications.filter(m => m.isCurrent).length;
       
       // Fetch profile using the new API
@@ -68,14 +78,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       setStats({
         medications: medications.length,
         currentMeds,
-        labTests: 0, // TODO: Implement labTests API
-        scans: 0, // TODO: Implement radiology API
-        diagnoses: 0, // TODO: Implement diagnoses API
-        surgeries: 0, // TODO: Implement surgeries API
+        labTests: labTests.length,
+        scans: radiologyScans.length,
+        diagnoses: diagnoses.length,
+        surgeries: surgeries.length,
       });
       setProfile(profile);
 
-      // Build recent items from medications
+      // Build recent items from all medical records
       const items: any[] = [];
       medications.slice(0, 8).forEach(m => items.push({ 
         ...m, 
@@ -84,9 +94,38 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         is_current: m.isCurrent
       }));
       
+      labTests.slice(0, 8).forEach(l => items.push({ 
+        ...l, 
+        type: 'lab_test', 
+        date: l.testDate,
+        test_name: l.testName
+      }));
+      
+      radiologyScans.slice(0, 8).forEach(r => items.push({ 
+        ...r, 
+        type: 'radiology_scan', 
+        date: r.scanDate,
+        scan_type: r.scanType,
+        body_part: r.bodyPart
+      }));
+      
+      diagnoses.slice(0, 8).forEach(d => items.push({ 
+        ...d, 
+        type: 'diagnosis', 
+        date: d.diagnosisDate,
+        diagnosis_name: d.diagnosisName
+      }));
+      
+      surgeries.slice(0, 8).forEach(s => items.push({ 
+        ...s, 
+        type: 'surgery', 
+        date: s.surgeryDate,
+        surgery_name: s.surgeryName
+      }));
+      
       // Sort by date (newest first)
       items.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
-      setRecentItems(items);
+      setRecentItems(items.slice(0, 8));
     } catch (err) {
       console.error(err);
       toast.error(t('dashboard.fetchError'));
@@ -95,11 +134,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   };
 
   const statCards = [
-    { label: 'Active Medications', value: stats.currentMeds, total: stats.medications, icon: Pill, color: 'from-emerald-500 to-green-400', bgLight: 'bg-emerald-50', textColor: 'text-emerald-700', view: 'medications' as ViewType },
-    { label: 'Lab Tests', value: stats.labTests, icon: FlaskConical, color: 'from-amber-500 to-yellow-400', bgLight: 'bg-amber-50', textColor: 'text-amber-700', view: 'lab_tests' as ViewType },
-    { label: 'Radiology Scans', value: stats.scans, icon: ScanLine, color: 'from-purple-500 to-violet-400', bgLight: 'bg-purple-50', textColor: 'text-purple-700', view: 'radiology' as ViewType },
-    { label: 'Diagnoses', value: stats.diagnoses, icon: Stethoscope, color: 'from-rose-500 to-pink-400', bgLight: 'bg-rose-50', textColor: 'text-rose-700', view: 'diagnoses' as ViewType },
-    { label: 'Surgeries', value: stats.surgeries, icon: Scissors, color: 'from-cyan-500 to-blue-400', bgLight: 'bg-cyan-50', textColor: 'text-cyan-700', view: 'surgeries' as ViewType },
+    { label: t('dashboard.activeMedications'), value: stats.currentMeds, total: stats.medications, icon: Pill, color: 'from-emerald-500 to-green-400', bgLight: 'bg-emerald-50', textColor: 'text-emerald-700', view: 'medications' as ViewType },
+    { label: t('dashboard.labTests'), value: stats.labTests, icon: FlaskConical, color: 'from-amber-500 to-yellow-400', bgLight: 'bg-amber-50', textColor: 'text-amber-700', view: 'lab_tests' as ViewType },
+    { label: t('dashboard.radiologyScans'), value: stats.scans, icon: ScanLine, color: 'from-purple-500 to-violet-400', bgLight: 'bg-purple-50', textColor: 'text-purple-700', view: 'radiology' as ViewType },
+    { label: t('dashboard.diagnoses'), value: stats.diagnoses, icon: Stethoscope, color: 'from-rose-500 to-pink-400', bgLight: 'bg-rose-50', textColor: 'text-rose-700', view: 'diagnoses' as ViewType },
+    { label: t('dashboard.surgeries'), value: stats.surgeries, icon: Scissors, color: 'from-cyan-500 to-blue-400', bgLight: 'bg-cyan-50', textColor: 'text-cyan-700', view: 'surgeries' as ViewType },
   ];
 
   const getItemIcon = (type: string, isActive?: boolean) => {
@@ -107,6 +146,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       case 'medication': return <Pill className={`w-4 h-4 ${isActive ? 'text-emerald-600' : 'text-gray-400'}`} />;
       case 'lab_test': return <FlaskConical className="w-4 h-4 text-amber-600" />;
       case 'scan': return <ScanLine className="w-4 h-4 text-purple-600" />;
+      case 'radiology_scan': return <ScanLine className="w-4 h-4 text-purple-600" />;
       case 'diagnosis': return <Stethoscope className="w-4 h-4 text-rose-600" />;
       case 'surgery': return <Scissors className="w-4 h-4 text-cyan-600" />;
       default: return <Activity className="w-4 h-4 text-gray-600" />;
@@ -118,22 +158,31 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       case 'medication': return item.name;
       case 'lab_test': return item.test_name;
       case 'scan': return `${item.scan_type} - ${item.body_part}`;
+      case 'radiology_scan': return `${item.scan_type} - ${item.body_part}`;
       case 'diagnosis': return item.diagnosis_name;
       case 'surgery': return item.surgery_name;
-      default: return 'Unknown';
+      default: return t('common.unknown');
     }
   };
 
   const getItemBadge = (type: string) => {
     const badges: Record<string, { label: string; color: string }> = {
-      medication: { label: 'Medication', color: 'bg-emerald-100 text-emerald-700' },
-      lab_test: { label: 'Lab Test', color: 'bg-amber-100 text-amber-700' },
-      scan: { label: 'Radiology', color: 'bg-purple-100 text-purple-700' },
-      diagnosis: { label: 'Diagnosis', color: 'bg-rose-100 text-rose-700' },
-      surgery: { label: 'Surgery', color: 'bg-cyan-100 text-cyan-700' },
+      medication: { label: t('dashboard.medication'), color: 'bg-emerald-100 text-emerald-700' },
+      lab_test: { label: t('dashboard.labTest'), color: 'bg-amber-100 text-amber-700' },
+      scan: { label: t('dashboard.radiology'), color: 'bg-purple-100 text-purple-700' },
+      radiology_scan: { label: t('dashboard.radiology'), color: 'bg-purple-100 text-purple-700' },
+      diagnosis: { label: t('dashboard.diagnosis'), color: 'bg-rose-100 text-rose-700' },
+      surgery: { label: t('dashboard.surgery'), color: 'bg-cyan-100 text-cyan-700' },
     };
     return badges[type] || { label: type, color: 'bg-gray-100 text-gray-700' };
   };
+
+  const quickActions = [
+    { label: t('dashboard.addMedication'), icon: Pill, view: 'medications' as ViewType, color: 'bg-emerald-500' },
+    { label: t('dashboard.addLabTest'), icon: FlaskConical, view: 'lab_tests' as ViewType, color: 'bg-amber-500' },
+    { label: t('dashboard.addScan'), icon: ScanLine, view: 'radiology' as ViewType, color: 'bg-purple-500' },
+    { label: t('dashboard.viewTimeline'), icon: Clock, view: 'timeline' as ViewType, color: 'bg-orange-500' },
+  ];
 
   if (loading) {
     return (
@@ -153,27 +202,27 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-2xl lg:text-3xl font-bold mb-2">
-                Welcome{profile?.full_name ? `, ${profile.full_name}` : ''} 
+                {t('dashboard.welcome')}{profile?.full_name ? `, ${profile.full_name}` : ''} 
               </h1>
               <p className="text-blue-100 text-sm lg:text-base max-w-lg">
-                Your complete health profile at a glance. Keep your medical records organized and accessible from anywhere.
+                {t('dashboard.welcomeMessage')}
               </p>
             </div>
             <div className="hidden lg:flex items-center gap-2 bg-white/10 rounded-xl px-4 py-2">
               <Calendar className="w-4 h-4" />
-              <span className="text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
+              <span className="text-sm">{new Date().toLocaleDateString(t('common.locale'), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
             </div>
           </div>
           {profile?.blood_type && (
             <div className="mt-4 flex items-center gap-4">
               <div className="bg-white/15 rounded-lg px-3 py-1.5 text-sm flex items-center gap-2">
                 <Heart className="w-4 h-4" />
-                Blood Type: <strong>{profile.blood_type}</strong>
+                {t('dashboard.bloodType')}: <strong>{profile.blood_type}</strong>
               </div>
               {profile.allergies?.length > 0 && (
                 <div className="bg-white/15 rounded-lg px-3 py-1.5 text-sm flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4" />
-                  {profile.allergies.length} Known Allergies
+                  {profile.allergies.length} {t('dashboard.knownAllergies')}
                 </div>
               )}
             </div>
@@ -206,12 +255,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
       {/* Quick Actions + Export PDF */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {[
-          { label: 'Add Medication', icon: Pill, view: 'medications' as ViewType, color: 'bg-emerald-500' },
-          { label: 'Add Lab Test', icon: FlaskConical, view: 'lab_tests' as ViewType, color: 'bg-amber-500' },
-          { label: 'Add Scan', icon: ScanLine, view: 'radiology' as ViewType, color: 'bg-purple-500' },
-          { label: 'View Timeline', icon: Clock, view: 'timeline' as ViewType, color: 'bg-orange-500' },
-        ].map((action) => {
+        {quickActions.map((action) => {
           const Icon = action.icon;
           return (
             <button
@@ -235,7 +279,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center">
             {exporting ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <FileDown className="w-4 h-4 text-white" />}
           </div>
-          <span className="text-sm font-medium text-white">{exporting ? 'Generating...' : 'Export PDF'}</span>
+          <span className="text-sm font-medium text-white">{exporting ? t('dashboard.generating') : t('dashboard.exportPDF')}</span>
         </button>
       </div>
 
@@ -243,20 +287,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       {/* Recent Activity */}
       <div className="bg-white rounded-xl border border-gray-100">
         <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">Recent Activity</h2>
+          <h2 className="font-semibold text-gray-900">{t('dashboard.recentActivity')}</h2>
           <button onClick={() => onNavigate('timeline')} className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
-            View All <ArrowRight className="w-3 h-3" />
+            {t('dashboard.viewAll')} <ArrowRight className="w-3 h-3" />
           </button>
         </div>
         {recentItems.length === 0 ? (
           <div className="p-8 text-center">
             <Activity className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-            <p className="text-gray-500 text-sm">No records yet. Start adding your medical history!</p>
+            <p className="text-gray-500 text-sm">{t('dashboard.noRecords')}</p>
             <button
               onClick={() => onNavigate('medications')}
               className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 mx-auto"
             >
-              <Plus className="w-4 h-4" /> Add your first record
+              <Plus className="w-4 h-4" /> {t('dashboard.addFirstRecord')}
             </button>
           </div>
         ) : (
@@ -274,7 +318,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{getItemName(item)}</p>
                     <p className="text-xs text-gray-400">
-                      {item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No date'}
+                      {item.date ? new Date(item.date).toLocaleDateString(t('common.locale'), { month: 'short', day: 'numeric', year: 'numeric' }) : t('common.noDate')}
                     </p>
                   </div>
                   <span className={`text-[10px] font-medium px-2 py-1 rounded-full ${badge.color}`}>

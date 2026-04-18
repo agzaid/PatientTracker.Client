@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Upload, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,7 +20,7 @@ interface RecordModalProps {
   title: string;
   fields: FieldConfig[];
   initialData?: Record<string, any>;
-  onSave: (data: Record<string, any>, fileUrl?: string, documentId?: number) => Promise<void>;
+  onSave: (data: Record<string, any>, fileUrl?: string, documentId?: number, allDocumentIds?: number[]) => Promise<void>;
   showFileUpload?: boolean;
   fileLabel?: string;
   existingFileUrl?: string;
@@ -40,8 +40,20 @@ const RecordModal: React.FC<RecordModalProps> = ({
   const [uploading, setUploading] = useState(false);
   const [fileUrl, setFileUrl] = useState(existingFileUrl || '');
   const [fileName, setFileName] = useState('');
-  const [documentId, setDocumentId] = useState<number | undefined>();
+  const [documentIds, setDocumentIds] = useState<number[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<{name: string, id: number}[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Update form when initialData changes or modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setForm(initialData || {});
+      setFileUrl(existingFileUrl || '');
+      setFileName('');
+      setDocumentIds([]);
+      setUploadedFiles([]);
+    }
+  }, [initialData, existingFileUrl, isOpen]);
 
   if (!isOpen) return null;
 
@@ -50,10 +62,12 @@ const RecordModal: React.FC<RecordModalProps> = ({
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0 || !user) return;
 
-    if (file.size > 10 * 1024 * 1024) {
+    // Check file sizes
+    const oversizedFiles = files.filter(file => file.size > 10 * 1024 * 1024);
+    if (oversizedFiles.length > 0) {
       toast.error(t('documents.fileSizeError'));
       return;
     }
@@ -61,16 +75,27 @@ const RecordModal: React.FC<RecordModalProps> = ({
     setUploading(true);
     
     try {
-      const document = await documentApi.uploadDocument(
-        file,
+      const documents = await documentApi.uploadDocumentList(
+        files,
         documentType,
         parentEntityType,
         parentEntityId
       );
       
-      setFileUrl(document.url || document.filePath);
-      setFileName(document.originalFileName);
-      setDocumentId(document.id);
+      const newDocumentIds = documents.map(doc => doc.id);
+      const newUploadedFiles = documents.map(doc => ({
+        name: doc.originalFileName,
+        id: doc.id
+      }));
+      
+      setDocumentIds(prev => [...prev, ...newDocumentIds]);
+      setUploadedFiles(prev => [...prev, ...newUploadedFiles]);
+      
+      if (newUploadedFiles.length > 0) {
+        setFileUrl('multiple');
+        setFileName(`${newUploadedFiles.length} file(s) uploaded`);
+      }
+      
       toast.success(t('documents.uploadSuccess'));
     } catch (error: any) {
       console.error('Upload error:', error);
@@ -78,6 +103,27 @@ const RecordModal: React.FC<RecordModalProps> = ({
     }
     
     setUploading(false);
+    e.target.value = '';
+  };
+
+  const handleDeleteDocument = async (docId: number) => {
+    try {
+      await documentApi.deleteDocument(docId);
+      setDocumentIds(prev => prev.filter(id => id !== docId));
+      setUploadedFiles(prev => prev.filter(file => file.id !== docId));
+      
+      if (uploadedFiles.length === 1) {
+        setFileUrl('');
+        setFileName('');
+      } else {
+        setFileName(`${uploadedFiles.length - 1} file(s) uploaded`);
+      }
+      
+      toast.success(t('documents.deleteSuccess'));
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      toast.error(error.error || t('documents.deleteError'));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -91,7 +137,8 @@ const RecordModal: React.FC<RecordModalProps> = ({
     }
     setSaving(true);
     try {
-      await onSave(form, fileUrl || undefined, documentId);
+      // Pass all document IDs to the parent component
+      await onSave(form, fileUrl || undefined, documentIds[0], documentIds);
       onClose();
     } catch (err) {
       toast.error(t('common.saveError'));
@@ -113,13 +160,13 @@ const RecordModal: React.FC<RecordModalProps> = ({
           {fields.map(field => (
             <div key={field.name}>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                {field.label} {field.required && <span className="text-red-500">*</span>}
+                {t(field.label)} {field.required && <span className="text-red-500">*</span>}
               </label>
               {field.type === 'textarea' ? (
                 <textarea
                   value={form[field.name] || ''}
                   onChange={(e) => handleChange(field.name, e.target.value)}
-                  placeholder={field.placeholder}
+                  placeholder={field.placeholder && t(field.placeholder)}
                   rows={3}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-sm resize-none"
                 />
@@ -129,7 +176,7 @@ const RecordModal: React.FC<RecordModalProps> = ({
                   onChange={(e) => handleChange(field.name, e.target.value)}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-sm bg-white"
                 >
-                  <option value="">{field.placeholder || 'Select...'}</option>
+                  <option value="">{field.placeholder ? t(field.placeholder) : t('common.select')}</option>
                   {field.options?.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
               ) : field.type === 'checkbox' ? (
@@ -147,7 +194,7 @@ const RecordModal: React.FC<RecordModalProps> = ({
                   type={field.type}
                   value={form[field.name] || ''}
                   onChange={(e) => handleChange(field.name, e.target.value)}
-                  placeholder={field.placeholder}
+                  placeholder={field.placeholder && t(field.placeholder)}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-sm"
                 />
               )}
@@ -156,21 +203,47 @@ const RecordModal: React.FC<RecordModalProps> = ({
 
           {showFileUpload && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{fileLabel || t('documents.uploadFile')}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                {fileLabel || t('documents.uploadFile')}
+              </label>
+              
+              {/* Uploaded Files List */}
+              {uploadedFiles.length > 0 && (
+                <div className="mb-3 space-y-2">
+                  {uploadedFiles.map((file) => (
+                    <div key={file.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                        <span className="text-sm text-gray-700 truncate">{file.name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteDocument(file.id)}
+                        className="p-1 rounded hover:bg-red-100 text-red-500 transition flex-shrink-0"
+                        title={t('common.delete')}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Upload Area */}
               <div
                 onClick={() => fileRef.current?.click()}
                 className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition"
               >
-                <input ref={fileRef} type="file" className="hidden" onChange={handleFileUpload} accept="image/*,.pdf" />
+                <input ref={fileRef} type="file" className="hidden" onChange={handleFileUpload} accept="image/*,.pdf" multiple />
                 {uploading ? (
                   <div className="flex items-center justify-center gap-2 text-blue-600">
                     <Loader2 className="w-5 h-5 animate-spin" />
                     <span className="text-sm">{t('documents.uploading')}</span>
                   </div>
-                ) : fileUrl ? (
+                ) : uploadedFiles.length > 0 ? (
                   <div className="flex items-center justify-center gap-2 text-emerald-600">
-                    <FileText className="w-5 h-5" />
-                    <span className="text-sm font-medium">{fileName || t('documents.fileUploaded')}</span>
+                    <Upload className="w-5 h-5" />
+                    <span className="text-sm font-medium">{t('documents.addMoreFiles')}</span>
                   </div>
                 ) : (
                   <>

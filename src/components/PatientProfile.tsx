@@ -179,8 +179,8 @@ const PatientProfile: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Patient Profile</h2>
-          <p className="text-sm text-gray-500">Manage your personal and medical information</p>
+          <h2 className="text-xl font-bold text-gray-900">{t('profile.title')}</h2>
+          <p className="text-sm text-gray-500">{t('profile.subtitle')}</p>
         </div>
         <button
           onClick={handleSave}
@@ -192,10 +192,11 @@ const PatientProfile: React.FC = () => {
         </button>
       </div>
 
-      {/* Basic Information */}
+      {/* Personal Information */}
       <div className="bg-white rounded-xl border border-gray-100 p-6">
         <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <User className="w-4 h-4 text-blue-600" /> {t('profile.basicInfo')}
+          <User className="w-4 h-4" />
+          {t('profile.personalInformation')}
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <InputField label={t('profile.fullName')} icon={User} value={form.full_name} onChange={(e: any) => setForm(p => ({ ...p, full_name: e.target.value }))} placeholder="John Doe" />
@@ -238,7 +239,8 @@ const PatientProfile: React.FC = () => {
       {/* Allergies */}
       <div className="bg-white rounded-xl border border-gray-100 p-6">
         <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-amber-600" /> {t('profile.allergies')}
+          <AlertTriangle className="w-4 h-4" />
+          {t('profile.allergies')}
         </h3>
         <div className="flex flex-wrap gap-2 mb-3">
           {form.allergies.map(a => (
@@ -294,7 +296,8 @@ const PatientProfile: React.FC = () => {
       {/* Emergency Contact */}
       <div className="bg-white rounded-xl border border-gray-100 p-6">
         <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Phone className="w-4 h-4 text-red-600" /> {t('profile.emergencyContact')}
+          <Phone className="w-4 h-4" />
+          {t('profile.emergencyContact')}
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <InputField label={t('profile.contactName')} icon={User} value={form.emergency_contact_name} onChange={(e: any) => setForm(p => ({ ...p, emergency_contact_name: e.target.value }))} placeholder="Jane Doe" />

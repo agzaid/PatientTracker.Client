@@ -9,7 +9,7 @@ import LabTestsPanel from './LabTestsPanel';
 import RadiologyPanel from './RadiologyPanel';
 import DiagnosesPanel from './DiagnosesPanel';
 import SurgeriesPanel from './SurgeriesPanel';
-import TimelineView from './TimelineView';
+import TimelinePanel from './TimelinePanel';
 import SharePanel from './SharePanel';
 import AuthModal from './AuthModal';
 import LandingPage from './LandingPage';
@@ -50,7 +50,7 @@ const AppLayout: React.FC = () => {
       case 'radiology': return <RadiologyPanel />;
       case 'diagnoses': return <DiagnosesPanel />;
       case 'surgeries': return <SurgeriesPanel />;
-      case 'timeline': return <TimelineView />;
+      case 'timeline': return <TimelinePanel />;
       case 'share': return <SharePanel />;
       default: return <Dashboard onNavigate={setCurrentView} />;
     }
