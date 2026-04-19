@@ -9,7 +9,10 @@ import { documentApi, DocumentType, ParentEntityType } from '@/services/document
 import { toast } from 'sonner';
 import RecordModal, { FieldConfig } from './RecordModal';
 import ViewModal from './ViewModal';
-import { Plus, FlaskConical, Search, Trash2, Edit2, ExternalLink, TrendingUp, TrendingDown, Minus, Eye } from 'lucide-react';
+import LabTestExtractionModal from './LabTestExtractionModal';
+import LabTestDocumentViewModal from './LabTestDocumentViewModal';
+import { labTestExtractionApi, type LabTestDocumentDto } from '@/services/labTestExtractionApi';
+import { Plus, FlaskConical, Search, Trash2, Edit2, ExternalLink, TrendingUp, TrendingDown, Minus, Eye, Scan, FileText, Calendar } from 'lucide-react';
 
 const labFields: FieldConfig[] = [
   { name: 'test_name', label: 'labTests.testName', type: 'text', placeholder: 'labTests.testNamePlaceholder', required: true },
@@ -27,17 +30,32 @@ const LabTestsPanel: React.FC = () => {
   const [labTests, setLabTests] = useState<LabTestDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editItem, setEditItem] = useState<LabTestDto | null>(null);
-  const [viewItem, setViewItem] = useState<LabTestDto | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 10;
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState<LabTestDto | null>(null);
+  const [viewItem, setViewItem] = useState<LabTestDto | null>(null);
+  const [showExtractionModal, setShowExtractionModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'tests' | 'documents'>('tests');
+  const [documents, setDocuments] = useState<LabTestDocumentDto[]>([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [showDocumentViewModal, setShowDocumentViewModal] = useState(false);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<number | undefined>();
+  const [documentsPage, setDocumentsPage] = useState(1);
+  const [documentsTotalPages, setDocumentsTotalPages] = useState(1);
+  const [documentsTotalCount, setDocumentsTotalCount] = useState(0);
+  const documentsPageSize = 10;
 
   useEffect(() => {
-    if (user) fetchTests();
-  }, [user, currentPage, search]);
+    if (user) {
+      fetchTests();
+      if (activeTab === 'documents') {
+        fetchDocuments();
+      }
+    }
+  }, [user, currentPage, search, activeTab, documentsPage]);
 
   const fetchTests = async () => {
     if (!user) return;
@@ -49,9 +67,32 @@ const LabTestsPanel: React.FC = () => {
       setTotalCount(response.totalCount);
     } catch (error: any) {
       console.error('Failed to fetch lab tests:', error);
-      toast.error(error.error || t('labTests.fetchError'));
+      const errorMessage = error.error?.value || error.error || error.message || t('labTests.fetchError');
+      toast.error(errorMessage);
     }
     setLoading(false);
+  };
+
+  const fetchDocuments = async () => {
+    if (!user) return;
+    setDocumentsLoading(true);
+    try {
+      const response = await labTestExtractionApi.getLabTestDocuments(documentsPage, documentsPageSize);
+      setDocuments(response.items);
+      setDocumentsTotalPages(Math.ceil(response.totalCount / documentsPageSize));
+      setDocumentsTotalCount(response.totalCount);
+    } catch (error: any) {
+      console.error('Failed to fetch documents:', error);
+      const errorMessage = error.error?.value || error.error || error.message || 'Failed to fetch documents';
+      toast.error(errorMessage);
+    } finally {
+      setDocumentsLoading(false);
+    }
+  };
+
+  const handleDocumentClick = (documentId: number) => {
+    setSelectedDocumentId(documentId);
+    setShowDocumentViewModal(true);
   };
 
   const handleSave = async (data: Record<string, any>, fileUrl?: string, documentId?: number, allDocumentIds?: number[]) => {
@@ -166,32 +207,70 @@ const LabTestsPanel: React.FC = () => {
           </h2>
           <p className="text-sm text-gray-500">{labTests.length} {t('labTests.testRecords')}</p>
         </div>
-        <button
-          onClick={() => { setEditItem(null); setShowModal(true); }}
-          className="bg-gradient-to-r from-amber-500 to-yellow-400 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-amber-500/25 transition-all flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" /> {t('labTests.add')}
-        </button>
-      </div>
-
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('labTests.searchPlaceholder')}
-          className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-        />
-      </div>
-
-      {loading ? (
-        <div className="flex items-center justify-center h-32">
-          <div className="w-8 h-8 border-3 border-amber-200 border-t-amber-600 rounded-full animate-spin" />
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowExtractionModal(true)}
+            className="bg-gradient-to-r from-blue-500 to-indigo-400 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2"
+          >
+            <Scan className="w-4 h-4" /> Scan Document
+          </button>
+          <button
+            onClick={() => { setEditItem(null); setShowModal(true); }}
+            className="bg-gradient-to-r from-amber-500 to-yellow-400 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-amber-500/25 transition-all flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" /> {t('labTests.add')}
+          </button>
         </div>
-      ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-100 p-8 text-center">
-          <FlaskConical className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-          <p className="text-gray-500 text-sm">{t('labTests.noLabTests')}</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('tests')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'tests'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Lab Tests
+          </button>
+          <button
+            onClick={() => setActiveTab('documents')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'documents'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Documents
+          </button>
+        </nav>
+      </div>
+
+      {activeTab === 'tests' && (
+        <>
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t('labTests.searchPlaceholder')}
+                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              />
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="w-8 h-8 border-3 border-amber-200 border-t-amber-600 rounded-full animate-spin" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-100 p-8 text-center">
+              <FlaskConical className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm">{t('labTests.noLabTests')}</p>
         </div>
       ) : (
         <div className="grid gap-3">
@@ -255,6 +334,85 @@ const LabTestsPanel: React.FC = () => {
           })}
         </div>
       )}
+        </>
+      )}
+
+      {activeTab === 'documents' && (
+        <div>
+          {documentsLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="w-8 h-8 border-3 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+            </div>
+          ) : documents.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-100 p-8 text-center">
+              <FileText className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm">No documents uploaded yet</p>
+              <p className="text-xs text-gray-400 mt-1">Upload lab test documents to extract results automatically</p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {documents.map((doc) => (
+                  <div
+                    key={doc.id}
+                    onClick={() => handleDocumentClick(doc.id)}
+                    className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all cursor-pointer"
+                  >
+                    <div className="flex items-start gap-3">
+                      {doc.thumbnailUrl ? (
+                        <img 
+                          src={doc.thumbnailUrl} 
+                          alt={doc.originalFileName}
+                          className="w-10 h-10 rounded-xl object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-5 h-5 text-blue-600" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-gray-900 truncate">{doc.originalFileName}</h4>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {doc.fileSize ? `${(doc.fileSize / 1024 / 1024).toFixed(2)} MB` : 'Size unknown'}
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className="flex items-center gap-1 text-xs text-gray-600">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(doc.createdAt).toLocaleDateString()}
+                          </div>
+                          {doc.extractionStatusName && (
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              doc.extractionStatusName === 'Completed' 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {doc.extractionStatusName}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Documents Pagination */}
+              {documentsTotalPages > 1 && (
+                <div className="mt-6">
+                  <Pagination
+                    currentPage={documentsPage}
+                    totalPages={documentsTotalPages}
+                    totalCount={documentsTotalCount}
+                    pageSize={documentsPageSize}
+                    onPageChange={setDocumentsPage}
+                    loading={documentsLoading}
+                  />
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       <RecordModal
         isOpen={showModal}
@@ -285,6 +443,27 @@ const LabTestsPanel: React.FC = () => {
         title={t('labTests.viewLabTest')}
         type="labTest"
         data={viewItem}
+      />
+      
+      <LabTestExtractionModal
+        isOpen={showExtractionModal}
+        onClose={() => setShowExtractionModal(false)}
+        onSuccess={() => {
+          setShowExtractionModal(false);
+          fetchTests();
+          if (activeTab === 'documents') {
+            fetchDocuments();
+          }
+        }}
+      />
+      
+      <LabTestDocumentViewModal
+        isOpen={showDocumentViewModal}
+        onClose={() => {
+          setShowDocumentViewModal(false);
+          setSelectedDocumentId(undefined);
+        }}
+        documentId={selectedDocumentId}
       />
       
       <Pagination

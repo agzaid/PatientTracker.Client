@@ -65,15 +65,31 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     if (!user) return;
     setLoading(true);
     try {
-      // Fetch all medical records using the new APIs
+      // Fetch all medical records using Promise.allSettled to handle partial failures
       // For all APIs, we need to get all items for dashboard stats, so use a large page size
-      const [medicationResponse, labTestResponse, radiologyResponse, diagnosisResponse, surgeryResponse] = await Promise.all([
+      const results = await Promise.allSettled([
         medicationApi.getMedications(1, 100), // Get all medications for dashboard
         labTestApi.getLabTests(1, 100), // Get all lab tests for dashboard
         radiologyApi.getRadiologyScans(1, 100), // Get all radiology scans for dashboard
         diagnosisApi.getDiagnoses(1, 100), // Get all diagnoses for dashboard
         surgeryApi.getSurgeries(1, 100) // Get all surgeries for dashboard
       ]);
+      
+      // Extract results with fallbacks for failed requests
+      const medicationResponse = results[0].status === 'fulfilled' ? results[0].value : { items: [], totalCount: 0 };
+      const labTestResponse = results[1].status === 'fulfilled' ? results[1].value : { items: [], totalCount: 0 };
+      const radiologyResponse = results[2].status === 'fulfilled' ? results[2].value : { items: [], totalCount: 0 };
+      const diagnosisResponse = results[3].status === 'fulfilled' ? results[3].value : { items: [], totalCount: 0 };
+      const surgeryResponse = results[4].status === 'fulfilled' ? results[4].value : { items: [], totalCount: 0 };
+      
+      // Log errors for debugging
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const apiNames = ['medications', 'lab tests', 'radiology', 'diagnoses', 'surgeries'];
+          console.error(`Failed to fetch ${apiNames[index]}:`, result.reason);
+        }
+      });
+      
       const medications = medicationResponse.items;
       const labTests = labTestResponse.items;
       const radiologyScans = radiologyResponse.items;
@@ -81,8 +97,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       const surgeries = surgeryResponse.items;
       const currentMeds = medications.filter(m => m.isCurrent).length;
       
-      // Fetch profile using the new API
-      const profile = await profileApi.getProfile();
+      // Fetch profile using the new API (separate try-catch)
+      let profile = null;
+      try {
+        profile = await profileApi.getProfile();
+      } catch (error) {
+        console.error('Failed to fetch profile:', error);
+      }
       
       setStats({
         medications: medicationResponse.totalCount,

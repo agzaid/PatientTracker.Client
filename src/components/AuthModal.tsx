@@ -22,7 +22,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
-    debugger;
     e.preventDefault();
     if (!email || !password) {
       toast.error(t('auth.fillAllFields'));

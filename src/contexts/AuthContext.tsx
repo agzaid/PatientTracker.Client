@@ -14,7 +14,6 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
 }
-debugger;
 const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
@@ -77,7 +76,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     try {
-      debugger;
       const response = await authApi.login({ email, password });
       console.log('Login response:', response);
       authApi.storeAuthData(response);
