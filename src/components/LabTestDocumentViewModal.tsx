@@ -46,6 +46,7 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
     setLoading(true);
     try {
       const doc = await labTestExtractionApi.getLabTestDocumentWithTests(id);
+      console.log('Fetched lab test document:', doc);
       setDocument(doc);
     } catch (error: any) {
       console.error('Failed to fetch document:', error);
@@ -60,21 +61,32 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
     if (!document) return;
 
     try {
-      // Use the documentUrl from the API response
-      if (!document.documentUrl) {
-        toast.error('Document URL not available');
+      // Use the same download action as other panels
+      // Use documentId if available, otherwise fall back to id
+      const docId = document.documentId || document.id;
+      if (!docId) {
+        toast.error('Document ID not available');
         return;
       }
       
-      const response = await fetch(document.documentUrl);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        setDocumentUrl(url);
-        setShowDocument(true);
-      } else {
-        toast.error('Failed to load document');
+      console.log(`Downloading document ${docId}`);
+      const blob = await documentApi.downloadDocument(docId);
+      console.log(`Document ${docId} blob:`, {
+        size: blob.size,
+        type: blob.type
+      });
+      
+      // Check if blob is actually image data
+      if (blob.size === 0) {
+        console.error('Blob is empty!');
+        toast.error('Received empty file');
+        return;
       }
+      
+      const url = URL.createObjectURL(blob);
+      console.log('Created blob URL:', url);
+      setDocumentUrl(url);
+      setShowDocument(true);
     } catch (error) {
       console.error('Failed to view document:', error);
       toast.error('Failed to load document');
@@ -176,11 +188,20 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
               {showDocument && documentUrl && (
                 <div className="mb-6">
                   <div className="border rounded-lg overflow-hidden">
-                    {document.contentType.startsWith('image/') ? (
+                    {document.contentType && document.contentType.startsWith('image/') ? (
                       <img 
                         src={documentUrl} 
                         alt={document.originalFileName}
                         className="w-full h-auto max-h-96 object-contain bg-gray-50"
+                        onLoad={() => console.log('Image loaded successfully')}
+                        onError={(e) => {
+                          console.error('Image failed to load:', e);
+                          console.error('Document details:', {
+                            contentType: document.contentType,
+                            documentUrl,
+                            fileName: document.originalFileName
+                          });
+                        }}
                       />
                     ) : document.contentType === 'application/pdf' ? (
                       <iframe
@@ -191,7 +212,7 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
                     ) : (
                       <div className="p-8 text-center text-gray-500">
                         <FileText className="w-12 h-12 mx-auto mb-2" />
-                        <p>Preview not available for this file type</p>
+                        <p>Preview not available for this file type: {document.contentType || 'unknown'}</p>
                       </div>
                     )}
                   </div>

@@ -178,7 +178,7 @@ export const documentApi = {
 
   async downloadDocument(id: number): Promise<Blob> {
     try {
-      const response = await apiClient.get(`/documents/${id}`, {
+      const response = await apiClient.get(`/documents/${id}/download`, {
         responseType: 'blob'
       });
       return response.data;

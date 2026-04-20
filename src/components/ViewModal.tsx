@@ -54,7 +54,16 @@ const ViewModal: React.FC<ViewModalProps> = ({ isOpen, onClose, title, type, dat
         .filter(doc => doc.contentType.startsWith('image/'))
         .map(async (doc) => {
           try {
+            console.log(`Downloading document ${doc.id}:`, {
+              fileName: doc.originalFileName,
+              contentType: doc.contentType,
+              filePath: doc.filePath
+            });
             const blob = await documentApi.downloadDocument(doc.id);
+            console.log(`Document ${doc.id} blob:`, {
+              size: blob.size,
+              type: blob.type
+            });
             const url = URL.createObjectURL(blob);
             return { id: doc.id, url };
           } catch (error) {
