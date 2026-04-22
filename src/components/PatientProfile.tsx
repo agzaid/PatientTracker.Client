@@ -208,7 +208,7 @@ const PatientProfile: React.FC = () => {
               onChange={(e) => setForm(p => ({ ...p, gender: e.target.value }))}
               className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-sm bg-white"
             >
-              <option value="">{t('profile.selectGender') || 'Select gender'}</option>
+              <option value="">{t('profile.selectGender', 'Select gender')}</option>
               {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
             </select>
           </div>
@@ -223,7 +223,7 @@ const PatientProfile: React.FC = () => {
                   t('common.direction') === 'rtl' ? 'pl-4 pr-10' : 'pl-10 pr-4'
                 }`}
               >
-                <option value="">{t('profile.selectBloodType') || 'Select blood type'}</option>
+                <option value="">{t('profile.selectBloodType', 'Select blood type')}</option>
                 {BLOOD_TYPES.map(bt => <option key={bt} value={bt}>{bt}</option>)}
               </select>
             </div>

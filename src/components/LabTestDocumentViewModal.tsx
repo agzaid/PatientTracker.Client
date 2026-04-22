@@ -7,6 +7,7 @@ import {
   X, FileText, Calendar, Clock, CheckCircle, AlertCircle, Loader2, 
   Download, Eye, EyeOff
 } from 'lucide-react';
+import DocumentChatBubble from './DocumentChatBubble';
 
 interface LabTestDocumentViewModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [showDocument, setShowDocument] = useState(false);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
+  const [showChat, setShowChat] = useState(false);
 
   useEffect(() => {
     if (isOpen && documentId) {
@@ -60,16 +62,24 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
   const handleViewDocument = async () => {
     if (!document) return;
 
+    console.log('Document object:', {
+      id: document.id,
+      documentId: document.documentId,
+      hasDocumentUrl: !!document.documentUrl,
+      documentUrl: document.documentUrl
+    });
+
     try {
-      // Use the same download action as other panels
-      // Use documentId if available, otherwise fall back to id
+      // Use documentId for the regular Documents API
+      // If no documentId, try using the lab test document ID itself
       const docId = document.documentId || document.id;
       if (!docId) {
+        console.error('No document ID available!');
         toast.error('Document ID not available');
         return;
       }
       
-      console.log(`Downloading document ${docId}`);
+      console.log('Using documentApi.downloadDocument with ID:', docId, '(documentId:', document.documentId, ', labTestId:', document.id, ')');
       const blob = await documentApi.downloadDocument(docId);
       console.log(`Document ${docId} blob:`, {
         size: blob.size,
@@ -84,12 +94,39 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
       }
       
       const url = URL.createObjectURL(blob);
-      console.log('Created blob URL:', url);
       setDocumentUrl(url);
       setShowDocument(true);
+      console.log('SUCCESS: Document loaded');
     } catch (error) {
       console.error('Failed to view document:', error);
       toast.error('Failed to load document');
+    }
+  };
+
+  const handleDownloadDocument = async () => {
+    if (!document) return;
+
+    try {
+      const docId = document.documentId || document.id;
+      if (!docId) {
+        toast.error('Document ID not available');
+        return;
+      }
+
+      const blob = await documentApi.downloadDocument(docId);
+      const url = window.URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = url;
+      a.download = document.originalFileName || 'document';
+      window.document.body.appendChild(a);
+      a.click();
+      window.document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Document downloaded successfully');
+    } catch (error) {
+      console.error('Failed to download document:', error);
+      toast.error('Failed to download document');
     }
   };
 
@@ -174,11 +211,29 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={handleViewDocument}
+                      onClick={() => setShowChat(!showChat)}
+                      className="flex items-center gap-2 px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+                      title="Ask AI about this document"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                      Ask AI
+                    </button>
+                    <button
+                      onClick={showDocument ? () => setShowDocument(false) : handleViewDocument}
                       className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                     >
-                      {showDocument ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      <Eye className="w-4 h-4" />
                       {showDocument ? 'Hide' : 'View'} Document
+                    </button>
+                    <button
+                      onClick={handleDownloadDocument}
+                      className="flex items-center gap-2 px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                      title="Download document"
+                    >
+                      <Download className="w-4 h-4" />
+                      Download
                     </button>
                   </div>
                 </div>
@@ -278,6 +333,16 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
           )}
         </div>
       </div>
+      
+      {/* Document Chat Bubble */}
+      {document && (
+        <DocumentChatBubble
+          documentId={document.documentId || document.id}
+          documentType="labTest"
+          isOpen={showChat}
+          onToggle={() => setShowChat(!showChat)}
+        />
+      )}
     </div>
   );
 };

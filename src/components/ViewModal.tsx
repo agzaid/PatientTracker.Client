@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { X, Download, FileText, Image as ImageIcon, Calendar, User, MapPin, Phone, Mail, Heart, AlertTriangle, Activity, Pill, FlaskConical } from 'lucide-react';
 import { documentApi, DocumentType, ParentEntityType } from '@/services/documentApi';
 import { toast } from 'sonner';
+import DocumentChatBubble from './DocumentChatBubble';
 
 interface ViewModalProps {
   isOpen: boolean;
@@ -17,6 +18,8 @@ const ViewModal: React.FC<ViewModalProps> = ({ isOpen, onClose, title, type, dat
   const [documents, setDocuments] = useState<any[]>([]);
   const [imageUrls, setImageUrls] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [activeDocumentId, setActiveDocumentId] = useState<number | null>(null);
 
   useEffect(() => {
     if (isOpen && data?.id) {
@@ -490,13 +493,27 @@ const ViewModal: React.FC<ViewModalProps> = ({ isOpen, onClose, title, type, dat
                                 {doc.originalFileName}
                               </p>
                             </div>
-                            <button
-                              onClick={() => handleDownload(doc)}
-                              className="p-2 rounded-lg hover:bg-gray-100 transition"
-                              title={t('common.download')}
-                            >
-                              <Download className="w-4 h-4 text-gray-600" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setActiveDocumentId(doc.id);
+                                  setShowChat(true);
+                                }}
+                                className="p-2 rounded-lg hover:bg-gray-100 transition"
+                                title="Ask AI about this document"
+                              >
+                                <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => handleDownload(doc)}
+                                className="p-2 rounded-lg hover:bg-gray-100 transition"
+                                title={t('common.download')}
+                              >
+                                <Download className="w-4 h-4 text-gray-600" />
+                              </button>
+                            </div>
                           </div>
                           <img
                             src={imageUrls[doc.id] || ''}
@@ -521,13 +538,27 @@ const ViewModal: React.FC<ViewModalProps> = ({ isOpen, onClose, title, type, dat
                                 {new Date(doc.uploadedAt).toLocaleDateString()}
                               </p>
                             </div>
-                            <button
-                              onClick={() => handleDownload(doc)}
-                              className="p-2 rounded-lg hover:bg-gray-100 transition"
-                              title={t('common.download')}
-                            >
-                              <Download className="w-4 h-4 text-gray-600" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setActiveDocumentId(doc.id);
+                                  setShowChat(true);
+                                }}
+                                className="p-2 rounded-lg hover:bg-gray-100 transition"
+                                title="Ask AI about this document"
+                              >
+                                <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => handleDownload(doc)}
+                                className="p-2 rounded-lg hover:bg-gray-100 transition"
+                                title={t('common.download')}
+                              >
+                                <Download className="w-4 h-4 text-gray-600" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -554,6 +585,16 @@ const ViewModal: React.FC<ViewModalProps> = ({ isOpen, onClose, title, type, dat
           </button>
         </div>
       </div>
+      
+      {/* Document Chat Bubble */}
+      {activeDocumentId && (
+        <DocumentChatBubble
+          documentId={activeDocumentId}
+          documentType={type}
+          isOpen={showChat}
+          onToggle={() => setShowChat(!showChat)}
+        />
+      )}
     </div>
   );
 };
