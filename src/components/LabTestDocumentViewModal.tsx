@@ -130,36 +130,18 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
     }
   };
 
-  const getStatusIcon = (status: number) => {
-    switch (status) {
-      case 1: // uploading
-      case 2: // processing
-      case 3: // extracting
-        return <Loader2 className="w-4 h-4 animate-spin text-blue-500" />;
-      case 4: // completed
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 5: // failed
-        return <AlertCircle className="w-4 h-4 text-red-500" />;
-      default:
-        return null;
+  const getStatusIcon = (statusName: string) => {
+    if (statusName === 'Completed') {
+      return <CheckCircle className="w-4 h-4 text-green-500" />;
+    } else if (statusName === 'Failed') {
+      return <AlertCircle className="w-4 h-4 text-red-500" />;
+    } else {
+      return <Loader2 className="w-4 h-4 animate-spin text-blue-500" />;
     }
   };
 
-  const getStatusText = (status: number) => {
-    switch (status) {
-      case 1:
-        return 'Uploading';
-      case 2:
-        return 'Processing';
-      case 3:
-        return 'Extracting';
-      case 4:
-        return 'Completed';
-      case 5:
-        return 'Failed';
-      default:
-        return 'Unknown';
-    }
+  const getStatusText = (statusName: string) => {
+    return statusName || 'Unknown';
   };
 
   if (!isOpen) return null;
@@ -200,9 +182,9 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
                         </div>
                         <div className="flex items-center gap-1 text-sm text-gray-600">
                           <Clock className="w-4 h-4" />
-                          {getStatusText(document.extractionStatus)}
+                          {getStatusText(document.extractionStatusName)}
                         </div>
-                        {getStatusIcon(document.extractionStatus)}
+                        {getStatusIcon(document.extractionStatusName)}
                       </div>
                       {document.extractionError && (
                         <p className="text-sm text-red-600 mt-1">{document.extractionError}</p>

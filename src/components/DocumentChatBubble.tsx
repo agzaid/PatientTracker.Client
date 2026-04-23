@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, MessageCircle, X, Loader2, Bot, User } from 'lucide-react';
+import { Send, MessageCircle, X, Loader2, Bot, User, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { documentChatApi, type ChatMessage } from '@/services/documentChatApi';
 
@@ -186,12 +186,25 @@ const DocumentChatBubble: React.FC<DocumentChatBubbleProps> = ({
               className={`max-w-[80%] rounded-lg px-3 py-2 ${
                 message.role === 'user'
                   ? 'bg-blue-600 text-white'
+                  : message.content.includes('Please consult with your healthcare provider')
+                  ? 'bg-red-50 border border-red-200'
                   : 'bg-gray-100 text-gray-900'
               }`}
             >
-              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              {message.content.includes('Please consult with your healthcare provider') ? (
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-red-900 font-medium">Medical Disclaimer</p>
+                    <p className="text-sm text-red-700 whitespace-pre-wrap">{message.content}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              )}
               <p className={`text-xs mt-1 ${
-                message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                message.role === 'user' ? 'text-blue-100' : 
+                message.content.includes('Please consult with your healthcare provider') ? 'text-red-500' : 'text-gray-500'
               }`}>
                 {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </p>

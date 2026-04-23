@@ -134,21 +134,45 @@ const LabTestsPanel: React.FC = () => {
       text: t('labTests.confirmDelete'),
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#6b7280',
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
       confirmButtonText: t('common.delete'),
-      cancelButtonText: t('common.cancel'),
-      reverseButtons: true
+      cancelButtonText: t('common.cancel')
     });
 
     if (result.isConfirmed) {
       try {
         await labTestApi.deleteLabTest(id);
-        toast.success(t('labTests.deleted'));
         fetchTests();
+        toast.success(t('labTests.deleteSuccess'));
       } catch (error: any) {
-        console.error('Failed to delete lab test:', error);
+        console.error('Delete failed:', error);
         toast.error(error.error || t('labTests.deleteError'));
+      }
+    }
+  };
+
+  const handleDocumentDelete = async (doc: any) => {
+    const result = await Swal.fire({
+      title: t('labTests.deleteDocumentConfirmTitle') || 'Delete Document?',
+      text: t('labTests.confirmDeleteDocument') || 'This will delete the document and all extracted lab tests. This action cannot be undone.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: t('common.delete'),
+      cancelButtonText: t('common.cancel')
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await labTestExtractionApi.deleteDocument(doc.id);
+        fetchDocuments();
+        fetchTests(); // Refresh lab tests in case any were deleted
+        toast.success(t('labTests.documentDeleteSuccess') || 'Document deleted successfully');
+      } catch (error: any) {
+        console.error('Document delete failed:', error);
+        toast.error(error.error || t('labTests.documentDeleteError') || 'Failed to delete document');
       }
     }
   };
@@ -355,42 +379,53 @@ const LabTestsPanel: React.FC = () => {
                 {documents.map((doc) => (
                   <div
                     key={doc.id}
-                    onClick={() => handleDocumentClick(doc.id)}
-                    className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all cursor-pointer"
+                    className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all"
                   >
                     <div className="flex items-start gap-3">
-                      {doc.thumbnailUrl ? (
-                        <img 
-                          src={doc.thumbnailUrl} 
-                          alt={doc.originalFileName}
-                          className="w-10 h-10 rounded-xl object-cover flex-shrink-0"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                          <FileText className="w-5 h-5 text-blue-600" />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-gray-900 truncate">{doc.originalFileName}</h4>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {doc.fileSize ? `${(doc.fileSize / 1024 / 1024).toFixed(2)} MB` : 'Size unknown'}
-                        </p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <div className="flex items-center gap-1 text-xs text-gray-600">
-                            <Calendar className="w-3 h-3" />
-                            {new Date(doc.createdAt).toLocaleDateString()}
+                      <div 
+                        onClick={() => handleDocumentClick(doc.id)}
+                        className="flex-1 cursor-pointer"
+                      >
+                        {doc.thumbnailUrl ? (
+                          <img 
+                            src={doc.thumbnailUrl} 
+                            alt={doc.originalFileName}
+                            className="w-10 h-10 rounded-xl object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <FileText className="w-5 h-5 text-blue-600" />
                           </div>
-                          {doc.extractionStatusName && (
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${
-                              doc.extractionStatusName === 'Completed' 
-                                ? 'bg-green-100 text-green-700' 
-                                : 'bg-yellow-100 text-yellow-700'
-                            }`}>
-                              {doc.extractionStatusName}
-                            </span>
-                          )}
+                        )}
+                        <div className="flex-1 min-w-0 mt-3">
+                          <h4 className="font-medium text-gray-900 truncate">{doc.originalFileName}</h4>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {doc.fileSize ? `${(doc.fileSize / 1024 / 1024).toFixed(2)} MB` : 'Size unknown'}
+                          </p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <div className="flex items-center gap-1 text-xs text-gray-600">
+                              <Calendar className="w-3 h-3" />
+                              {new Date(doc.createdAt).toLocaleDateString()}
+                            </div>
+                            {doc.extractionStatusName && (
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                doc.extractionStatusName === 'Completed' 
+                                  ? 'bg-green-100 text-green-700' 
+                                  : 'bg-yellow-100 text-yellow-700'
+                              }`}>
+                                {doc.extractionStatusName}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
+                      <button
+                        onClick={() => handleDocumentDelete(doc)}
+                        className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"
+                        title={t('common.delete')}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 ))}

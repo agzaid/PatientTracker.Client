@@ -32,13 +32,16 @@ export const documentChatApi = {
   // Send a message to the AI about a document
   sendMessage: async (request: SendMessageRequest): Promise<SendMessageResponse> => {
     try {
-      const response = await apiClient.post<SendMessageResponse>('/documentchat', {
+      console.log('Sending chat message:', request);
+      const response = await apiClient.post<SendMessageResponse>('documentchat', {
         documentId: request.documentId,
         message: request.message,
         includeHistory: request.includeHistory ?? true
       });
+      console.log('Chat message response:', response.data);
       return response.data;
     } catch (error: any) {
+      console.error('Chat message error:', error);
       throw error.response?.data || { error: 'Failed to send message' };
     }
   },

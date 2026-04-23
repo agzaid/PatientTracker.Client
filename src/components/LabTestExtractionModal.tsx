@@ -32,6 +32,7 @@ const LabTestExtractionModal: React.FC<LabTestExtractionModalProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const pollIntervalRef = useRef<number | null>(null);
 
   const clearState = useCallback(() => {
@@ -42,6 +43,7 @@ const LabTestExtractionModal: React.FC<LabTestExtractionModalProps> = ({
     setIsEditing(false);
     setIsUploading(false);
     setIsSaving(false);
+    setStatusError(null);
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
@@ -141,6 +143,23 @@ const LabTestExtractionModal: React.FC<LabTestExtractionModalProps> = ({
       }
     } catch (error: any) {
       console.error('Status check failed:', error);
+      
+      // Show user-friendly error message
+      const errorMessage = error?.response?.data?.error || 
+                          error?.message || 
+                          'Unable to check extraction status. Please try again.';
+      
+      // Stop polling on error
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      
+      setIsUploading(false);
+      toast.error(errorMessage);
+      
+      // Set error state to show in UI
+      setStatusError(errorMessage);
     }
   };
 
@@ -148,6 +167,7 @@ const LabTestExtractionModal: React.FC<LabTestExtractionModalProps> = ({
     if (!extractionResponse?.document.id) return;
     
     setIsUploading(true);
+    setStatusError(null);
     try {
       const response = await labTestExtractionApi.retryExtraction(extractionResponse.document.id);
       setExtractionResponse(response);
@@ -328,11 +348,16 @@ const LabTestExtractionModal: React.FC<LabTestExtractionModalProps> = ({
             <div>
               <div className="flex items-center gap-3 mb-6 p-4 bg-gray-50 rounded-lg">
                 {getStatusIcon()}
-                <div>
-                  <p className="font-medium text-gray-900">Status: {extractionResponse.document.extractionStatus}</p>
-                  <p className="text-sm text-gray-600">{getStatusMessage()}</p>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-900">Status: {getStatusMessage()}</p>
+                  {statusError && (
+                    <p className="text-sm text-red-600 mt-1">{statusError}</p>
+                  )}
+                  {extractionResponse?.document.extractionError && (
+                    <p className="text-sm text-red-600 mt-1">{extractionResponse.document.extractionError}</p>
+                  )}
                 </div>
-                {extractionResponse.document.extractionStatus === 5 && (
+                {(extractionResponse?.document.extractionStatus === 5 || statusError) && (
                   <button
                     onClick={handleRetry}
                     className="ml-auto p-2 rounded-lg hover:bg-gray-100 transition"
