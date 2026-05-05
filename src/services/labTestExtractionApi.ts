@@ -88,6 +88,7 @@ const labTestExtractionApi = {
     }
     
     try {
+      // const response = await apiClient.post<LabTestExtractionResponse>('/LabTestExtraction/tesseract', formData, {
       const response = await apiClient.post<LabTestExtractionResponse>('/LabTestExtraction', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
