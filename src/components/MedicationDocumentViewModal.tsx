@@ -1,94 +1,68 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { labTestExtractionApi, type LabTestDocumentWithTestsDto, type LabTestDto } from '@/services/labTestExtractionApi';
+import { X, Eye, Download, Loader2, CheckCircle, AlertCircle, Clock, Calendar, FileText, Droplets, Pill } from 'lucide-react';
 import { documentApi } from '@/services/documentApi';
+import { medicationExtractionApi, type MedicationDocumentWithMedicationsDto } from '@/services/medicationExtractionApi';
 import { toast } from 'sonner';
-import { 
-  X, FileText, Calendar, Clock, CheckCircle, AlertCircle, Loader2, 
-  Download, Eye, EyeOff
-} from 'lucide-react';
 import DocumentChatBubble from './DocumentChatBubble';
 
-interface LabTestDocumentViewModalProps {
+interface MedicationDocumentViewModalProps {
   isOpen: boolean;
   onClose: () => void;
-  documentId?: number;
+  document: any;
 }
 
-const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
+const MedicationDocumentViewModal: React.FC<MedicationDocumentViewModalProps> = ({
   isOpen,
   onClose,
-  documentId
+  document
 }) => {
   const { t } = useTranslation();
-  const [document, setDocument] = useState<LabTestDocumentWithTestsDto | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [showDocument, setShowDocument] = useState(false);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
+  const [showDocument, setShowDocument] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [documentWithMedications, setDocumentWithMedications] = useState<MedicationDocumentWithMedicationsDto | null>(null);
+  const [loadingMedications, setLoadingMedications] = useState(false);
 
   useEffect(() => {
-    if (isOpen && documentId) {
-      fetchDocument(documentId);
-    } else {
-      clearState();
+    if (isOpen && document) {
+      fetchDocumentWithMedications();
     }
-  }, [isOpen, documentId]);
+  }, [isOpen, document]);
 
-  const clearState = () => {
-    setDocument(null);
-    setShowDocument(false);
-    if (documentUrl) {
-      URL.revokeObjectURL(documentUrl);
-      setDocumentUrl(null);
+  const fetchDocumentWithMedications = async () => {
+    if (!document) return;
+    
+    const docId = document.id;
+    if (!docId) {
+      toast.error('Document ID not available');
+      return;
     }
-  };
 
-  const fetchDocument = async (id: number) => {
-    setLoading(true);
+    setLoadingMedications(true);
     try {
-      const doc = await labTestExtractionApi.getLabTestDocumentWithTests(id);
-      console.log('Fetched lab test document:', doc);
-      setDocument(doc);
+      const data = await medicationExtractionApi.getMedicationDocumentWithMedications(docId);
+      setDocumentWithMedications(data);
     } catch (error: any) {
-      console.error('Failed to fetch document:', error);
-      toast.error(error.error || 'Failed to fetch document');
-      onClose();
-    } finally {
-      setLoading(false);
+      console.error('Failed to fetch document with medications:', error);
+      toast.error(error.error || 'Failed to fetch medications');
     }
+    setLoadingMedications(false);
   };
 
   const handleViewDocument = async () => {
     if (!document) return;
 
-    console.log('Document object:', {
-      id: document.id,
-      documentId: document.documentId,
-      hasDocumentUrl: !!document.documentUrl,
-      documentUrl: document.documentUrl
-    });
-
     try {
-      // Use documentId for the regular Documents API
-      // If no documentId, try using the lab test document ID itself
       const docId = document.documentId || document.id;
       if (!docId) {
-        console.error('No document ID available!');
         toast.error('Document ID not available');
         return;
       }
       
-      console.log('Using documentApi.downloadDocument with ID:', docId, '(documentId:', document.documentId, ', labTestId:', document.id, ')');
       const blob = await documentApi.downloadDocument(docId);
-      console.log(`Document ${docId} blob:`, {
-        size: blob.size,
-        type: blob.type
-      });
       
-      // Check if blob is actually image data
       if (blob.size === 0) {
-        console.error('Blob is empty!');
         toast.error('Received empty file');
         return;
       }
@@ -96,7 +70,6 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
       const url = URL.createObjectURL(blob);
       setDocumentUrl(url);
       setShowDocument(true);
-      console.log('SUCCESS: Document loaded');
     } catch (error) {
       console.error('Failed to view document:', error);
       toast.error('Failed to load document');
@@ -140,10 +113,6 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
     }
   };
 
-  const getStatusText = (statusName: string) => {
-    return statusName || 'Unknown';
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -152,20 +121,19 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-100 shrink-0">
           <h3 className="text-lg sm:text-xl font-semibold text-gray-900 truncate mr-2">
-            Lab Test Document
+            Medication Document
           </h3>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 transition shrink-0">
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition shrink-0"
+          >
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
         {/* Content */}
         <div className="p-4 sm:p-6 overflow-y-auto flex-1">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-            </div>
-          ) : document ? (
+          {document ? (
             <div>
               {/* Document Info */}
               <div className="bg-gray-50 rounded-lg p-3 sm:p-4 mb-6">
@@ -184,13 +152,10 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
                         </div>
                         <div className="flex items-center gap-1 text-xs sm:text-sm text-gray-600">
                           <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
-                          {getStatusText(document.extractionStatusName)}
+                          {document.extractionStatusName}
                         </div>
-                        {getStatusIcon(document.extractionStatusName)}
+                        {getStatusIcon(document.extractionStatusName || '')}
                       </div>
-                      {document.extractionError && (
-                        <p className="text-xs sm:text-sm text-red-600 mt-1">{document.extractionError}</p>
-                      )}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2 sm:flex-nowrap sm:justify-end">
@@ -249,55 +214,73 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
                 </div>
               )}
 
-              {/* Lab Tests */}
-              {document.labTests && document.labTests.length > 0 && (
-                <div>
-                  <h4 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">
-                    Lab Tests ({document.labTests.length})
+              {/* Extracted Medications */}
+              {documentWithMedications && (
+                <div className="mt-6">
+                  <h4 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Pill className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
+                    Extracted Medications ({documentWithMedications.medications.length})
                   </h4>
-                  <div className="space-y-3">
-                    {document.labTests.map((test) => (
-                      <div key={test.id} className="border rounded-lg p-3 sm:p-4 hover:bg-gray-50 transition">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                          <div>
-                            <label className="block text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">
-                              Test Name
-                            </label>
-                            <p className="font-medium text-gray-900 text-sm sm:text-base">{test.testName}</p>
-                          </div>
-                          <div>
-                            <label className="block text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">
-                              Result
-                            </label>
-                            <p className="text-gray-900 text-sm sm:text-base">
-                              {test.resultValue && test.resultUnit ? `${test.resultValue} ${test.resultUnit}` : test.results || test.resultValue || '-'}
-                            </p>
-                          </div>
-                          <div>
-                            <label className="block text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">
-                              Normal Range
-                            </label>
-                            <p className="text-gray-900 text-sm sm:text-base">{test.normalRange || '-'}</p>
+                  {loadingMedications ? (
+                    <div className="flex items-center justify-center h-32">
+                      <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin text-blue-600" />
+                    </div>
+                  ) : documentWithMedications.medications.length === 0 ? (
+                    <div className="bg-gray-50 rounded-lg p-4 sm:p-6 text-center">
+                      <Pill className="w-10 h-10 sm:w-12 sm:h-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-sm sm:text-base text-gray-500">No medications extracted from this document</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {documentWithMedications.medications.map((med, index) => (
+                        <div key={med.id || index} className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4">
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <h5 className="font-semibold text-gray-900 mb-2 text-sm sm:text-base truncate">{med.medicationName}</h5>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm">
+                                {med.dosage && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Dosage:</span>
+                                    <span className="ml-2 text-gray-600">{med.dosage}</span>
+                                  </div>
+                                )}
+                                {med.frequency && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Frequency:</span>
+                                    <span className="ml-2 text-gray-600">{med.frequency}</span>
+                                  </div>
+                                )}
+                                {med.startDate && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Start Date:</span>
+                                    <span className="ml-2 text-gray-600">{new Date(med.startDate).toLocaleDateString()}</span>
+                                  </div>
+                                )}
+                                {med.endDate && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">End Date:</span>
+                                    <span className="ml-2 text-gray-600">{new Date(med.endDate).toLocaleDateString()}</span>
+                                  </div>
+                                )}
+                                {med.status && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Status:</span>
+                                    <span className="ml-2 text-gray-600">{med.status}</span>
+                                  </div>
+                                )}
+                              </div>
+                              {med.notes && (
+                                <div className="mt-2">
+                                  <span className="font-medium text-gray-700 text-sm">Notes:</span>
+                                  <p className="text-gray-600 text-sm mt-1">{med.notes}</p>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        {test.doctorNotes && (
-                          <div className="mt-3 pt-3 border-t">
-                            <label className="block text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">
-                              Notes
-                            </label>
-                            <p className="text-xs sm:text-sm text-gray-600">{test.doctorNotes}</p>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {document.labTests && document.labTests.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <FileText className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2" />
-                  <p>No lab tests associated with this document</p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -313,7 +296,7 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
       {document && (
         <DocumentChatBubble
           documentId={document.documentId || document.id}
-          documentType="labTest"
+          documentType="medication"
           isOpen={showChat}
           onToggle={() => setShowChat(!showChat)}
         />
@@ -322,4 +305,4 @@ const LabTestDocumentViewModal: React.FC<LabTestDocumentViewModalProps> = ({
   );
 };
 
-export default LabTestDocumentViewModal;
+export default MedicationDocumentViewModal;

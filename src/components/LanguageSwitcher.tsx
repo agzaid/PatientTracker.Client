@@ -15,15 +15,20 @@ const LanguageSwitcher: React.FC = () => {
   const toggleLanguage = async () => {
     const newLang = i18n.language === 'en' ? 'ar' : 'en';
     
-    // Update language on backend and set cookie
-    await languageApi.updateLanguagePreference(newLang);
-    
-    // Change language in i18n
-    i18n.changeLanguage(newLang);
+    // Change language in i18n first
+    await i18n.changeLanguage(newLang);
     
     // Update document direction for RTL support
     document.documentElement.dir = newLang === 'ar' ? 'rtl' : 'ltr';
     document.documentElement.lang = newLang;
+    
+    // Update language on backend and set cookie
+    try {
+      await languageApi.updateLanguagePreference(newLang);
+    } catch (error) {
+      console.error('Failed to update language preference:', error);
+      // Continue even if backend update fails
+    }
   };
 
   return (

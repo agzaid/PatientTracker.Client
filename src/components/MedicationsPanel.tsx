@@ -3,11 +3,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import Swal from 'sweetalert2';
 import { medicationApi, type MedicationDto, type CreateMedicationRequest, type UpdateMedicationRequest, type PaginatedMedicationsResponse } from '@/services/medicationApi';
+import { medicationExtractionApi, type MedicationDocumentDto } from '@/services/medicationExtractionApi';
 import { documentApi, DocumentType, ParentEntityType } from '@/services/documentApi';
 import { toast } from 'sonner';
 import RecordModal, { FieldConfig } from './RecordModal';
 import ViewModal from './ViewModal';
-import { Plus, Pill, Search, Trash2, Edit2, ExternalLink, CheckCircle2, XCircle, Eye } from 'lucide-react';
+import MedicationExtractionModal from './MedicationExtractionModal';
+import MedicationDocumentViewModal from './MedicationDocumentViewModal';
+import { Plus, Pill, Search, Trash2, Edit2, ExternalLink, CheckCircle2, XCircle, Eye, Upload, FileText, Calendar, Clock, Loader2 } from 'lucide-react';
 
 const medicationFields: FieldConfig[] = [
   { name: 'name', label: 'medications.medicationName', type: 'text', placeholder: 'medications.medicationNamePlaceholder', required: true },
@@ -28,6 +31,12 @@ const MedicationsPanel: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<MedicationDto | null>(null);
   const [viewItem, setViewItem] = useState<MedicationDto | null>(null);
+  const [showExtractionModal, setShowExtractionModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'medications' | 'documents'>('medications');
+  const [documents, setDocuments] = useState<MedicationDocumentDto[]>([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<MedicationDocumentDto | null>(null);
+  const [showDocumentViewModal, setShowDocumentViewModal] = useState(false);
   const [filter, setFilter] = useState<'all' | 'current' | 'past'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -37,6 +46,52 @@ const MedicationsPanel: React.FC = () => {
   useEffect(() => {
     if (user) fetchMedications();
   }, [user, currentPage, search, filter]);
+
+  useEffect(() => {
+    if (user && activeTab === 'documents') fetchDocuments();
+  }, [user, activeTab]);
+
+  const fetchDocuments = async () => {
+    if (!user) return;
+    setDocumentsLoading(true);
+    try {
+      const response = await medicationExtractionApi.getMedicationDocuments(1, 50);
+      setDocuments(response.items);
+    } catch (error: any) {
+      console.error('Failed to fetch documents:', error);
+      toast.error(error.error || 'Failed to fetch documents');
+    }
+    setDocumentsLoading(false);
+  };
+
+  const handleDocumentClick = (document: MedicationDocumentDto) => {
+    setSelectedDocument(document);
+    setShowDocumentViewModal(true);
+  };
+
+  const handleDocumentDelete = async (documentId: number) => {
+    const result = await Swal.fire({
+      title: t('labTests.deleteConfirmTitle'),
+      text: t('labTests.confirmDelete'),
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: t('common.delete'),
+      cancelButtonText: t('common.cancel')
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await medicationExtractionApi.deleteDocument(documentId);
+        fetchDocuments();
+        toast.success(t('labTests.deleteSuccess'));
+      } catch (error: any) {
+        console.error('Delete failed:', error);
+        toast.error(error.error || t('labTests.deleteError'));
+      }
+    }
+  };
 
   const fetchMedications = async () => {
     if (!user) return;
@@ -160,72 +215,111 @@ const MedicationsPanel: React.FC = () => {
     .filter(m => !search || m.name.toLowerCase().includes(search.toLowerCase()) || (m.notes || '').toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <Pill className="w-5 h-5 text-emerald-600" /> {t('medications.title')}
+            <Pill className="w-5 h-5 text-emerald-600" />
+            {t('medications.title')}
           </h2>
-          <p className="text-sm text-gray-500">{medications.length} {t('common.total')}, {medications.filter(m => m.isCurrent).length} {t('medications.active')}</p>
+          <p className="text-sm text-gray-500">{filtered.length} {t('medications.medicationRecords')}</p>
         </div>
-        <button
-          onClick={() => { setEditItem(null); setShowModal(true); }}
-          className="bg-gradient-to-r from-emerald-500 to-green-400 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-emerald-500/25 transition-all flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" /> {t('medications.add')}
-        </button>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('medications.searchPlaceholder')}
-            className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-          />
-        </div>
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-          {(['all', 'current', 'past'] as const).map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${filter === f ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              {t(`medications.filter.${f}`)}
-            </button>
-          ))}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowExtractionModal(true)}
+            className="bg-gradient-to-r from-blue-500 to-indigo-400 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2"
+          >
+            <Upload className="w-4 h-4" />
+            Scan Document
+          </button>
+          <button
+            onClick={() => { setEditItem(null); setShowModal(true); }}
+            className="bg-gradient-to-r from-amber-500 to-yellow-400 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-amber-500/25 transition-all flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            {t('medications.add')}
+          </button>
         </div>
       </div>
 
-      {/* List */}
-      {loading ? (
-        <div className="flex items-center justify-center h-32">
-          <div className="w-8 h-8 border-3 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
+    {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('medications')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'medications'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Medications
+          </button>
+          <button
+            onClick={() => setActiveTab('documents')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'documents'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Documents
+          </button>
+        </nav>
+      </div>
+
+      {activeTab === 'medications' && (
+      <>
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('medications.searchPlaceholder')}
+              className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            />
+          </div>
+          <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+            {(['all', 'current', 'past'] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${filter === f ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                {t(`medications.filter.${f}`)}
+              </button>
+            ))}
+          </div>
         </div>
-      ) : medications.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-100 p-8 text-center">
-          <Pill className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-          <p className="text-gray-500 text-sm">{t('medications.noMedications')}</p>
-        </div>
-      ) : (
-        <div className="grid gap-3">
-          {medications.map(med => (
-            <div key={med.id} className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${med.isCurrent ? 'bg-emerald-50' : 'bg-gray-50'}`}>
-                    <Pill className={`w-5 h-5 ${med.isCurrent ? 'text-emerald-600' : 'text-gray-400'}`} />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                      {med.name}
-                      {med.isCurrent ? (
-                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-0.5">
-                          <CheckCircle2 className="w-3 h-3" /> {t('medications.active')}
-                        </span>
+
+          {/* List */}
+          {loading ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="w-8 h-8 border-3 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
+            </div>
+          ) : medications.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-100 p-8 text-center">
+              <Pill className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm">{t('medications.noMedications')}</p>
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {medications.map(med => (
+                <div key={med.id} className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${med.isCurrent ? 'bg-emerald-50' : 'bg-gray-50'}`}>
+                        <Pill className={`w-5 h-5 ${med.isCurrent ? 'text-emerald-600' : 'text-gray-400'}`} />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                          {med.name}
+                          {med.isCurrent ? (
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-0.5">
+                              <CheckCircle2 className="w-3 h-3" /> {t('medications.active')}
+                            </span>
                       ) : (
                         <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 flex items-center gap-0.5">
                           <XCircle className="w-3 h-3" /> {t('medications.past')}
@@ -270,6 +364,59 @@ const MedicationsPanel: React.FC = () => {
           ))}
         </div>
       )}
+      </>
+      )}
+
+      {/* Documents Tab Content */}
+      {activeTab === 'documents' && (
+        <>
+          {documentsLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {documents.length === 0 ? (
+                <div className="col-span-full text-center py-12">
+                  <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">No documents uploaded yet</p>
+                </div>
+              ) : (
+                documents.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition cursor-pointer"
+                    onClick={() => handleDocumentClick(doc)}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <FileText className="w-10 h-10 text-gray-400" />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDocumentDelete(doc.id);
+                        }}
+                        className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <h4 className="font-medium text-gray-900 mb-1 truncate">{doc.originalFileName}</h4>
+                    <p className="text-sm text-gray-500 mb-2">{(doc.fileSize! / 1024 / 1024).toFixed(2)} MB</p>
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Calendar className="w-3 h-3" />
+                      {new Date(doc.createdAt).toLocaleDateString()}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                      <Clock className="w-3 h-3" />
+                      {doc.extractionStatusName}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </>
+      )}
 
       <RecordModal
         isOpen={showModal}
@@ -298,6 +445,18 @@ const MedicationsPanel: React.FC = () => {
         title={t('medications.viewMedication')}
         type="medication"
         data={viewItem}
+      />
+      
+      <MedicationExtractionModal
+        isOpen={showExtractionModal}
+        onClose={() => setShowExtractionModal(false)}
+        onSuccess={() => fetchMedications()}
+      />
+      
+      <MedicationDocumentViewModal
+        isOpen={showDocumentViewModal}
+        onClose={() => setShowDocumentViewModal(false)}
+        document={selectedDocument}
       />
     {/* Pagination */}
       {!loading && totalPages > 1 && (
