@@ -142,48 +142,48 @@ const DocumentChatBubble: React.FC<DocumentChatBubbleProps> = ({
   }
 
   return (
-    <div className="fixed bottom-6 right-6 w-96 h-[500px] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-[calc(100%-2rem)] sm:w-96 h-[60vh] sm:h-[500px] bg-white rounded-lg sm:rounded-xl shadow-2xl z-50 flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-blue-600 text-white rounded-t-lg">
+      <div className="flex items-center justify-between p-3 sm:p-4 border-b bg-blue-600 text-white rounded-t-lg sm:rounded-t-xl shrink-0">
         <div className="flex items-center gap-2">
-          <Bot className="w-5 h-5" />
-          <span className="font-medium">Medical Document Assistant</span>
+          <Bot className="w-4 h-4 sm:w-5 sm:h-5" />
+          <span className="font-medium text-sm sm:text-base">Medical Document Assistant</span>
         </div>
         <button
           onClick={onToggle}
-          className="p-1 hover:bg-blue-700 rounded transition"
+          className="p-1 hover:bg-blue-700 rounded transition shrink-0"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4">
         {isLoadingHistory ? (
           <div className="text-center text-gray-500 py-8">
-            <Loader2 className="w-12 h-12 mx-auto mb-2 animate-spin text-gray-300" />
-            <p className="text-sm">Loading chat history...</p>
+            <Loader2 className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-2 animate-spin text-gray-300" />
+            <p className="text-xs sm:text-sm">Loading chat history...</p>
           </div>
         ) : messages.length === 0 ? (
           <div className="text-center text-gray-500 py-8">
-            <Bot className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-            <p className="text-sm">Ask me anything about this document</p>
-            <p className="text-xs mt-1">e.g., "What are the key findings?"</p>
+            <Bot className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-2 text-gray-300" />
+            <p className="text-xs sm:text-sm">Ask me anything about this document</p>
+            <p className="text-[10px] sm:text-xs mt-1">e.g., "What are the key findings?"</p>
           </div>
         ) : null}
 
         {messages.map((message) => (
           <div
             key={message.id}
-            className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex gap-2 sm:gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {message.role === 'assistant' && (
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <Bot className="w-4 h-4 text-blue-600" />
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <Bot className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
               </div>
             )}
             <div
-              className={`max-w-[80%] rounded-lg px-3 py-2 ${
+              className={`max-w-[85%] sm:max-w-[80%] rounded-lg px-2.5 py-2 sm:px-3 sm:py-2 ${
                 message.role === 'user'
                   ? 'bg-blue-600 text-white'
                   : message.content.includes('Please consult with your healthcare provider')
@@ -191,39 +191,35 @@ const DocumentChatBubble: React.FC<DocumentChatBubbleProps> = ({
                   : 'bg-gray-100 text-gray-900'
               }`}
             >
-              {message.content.includes('Please consult with your healthcare provider') ? (
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-red-900 font-medium">Medical Disclaimer</p>
-                    <p className="text-sm text-red-700 whitespace-pre-wrap">{message.content}</p>
-                  </div>
+              {message.content.includes('Please consult with your healthcare provider') && (
+                <div className="flex items-start gap-1.5 sm:gap-2 mb-2">
+                  <AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-[10px] sm:text-xs font-semibold text-red-500">Important:</span>
                 </div>
-              ) : (
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
               )}
-              <p className={`text-xs mt-1 ${
-                message.role === 'user' ? 'text-blue-100' : 
+              <p className="text-xs sm:text-sm whitespace-pre-wrap">{message.content}</p>
+              <p className={`text-[10px] sm:text-xs mt-1 ${
+                message.role === 'user' ? 'text-blue-100' :
                 message.content.includes('Please consult with your healthcare provider') ? 'text-red-500' : 'text-gray-500'
               }`}>
                 {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </p>
             </div>
             {message.role === 'user' && (
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                <User className="w-4 h-4 text-white" />
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <User className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
               </div>
             )}
           </div>
         ))}
 
         {isLoading && (
-          <div className="flex gap-3 justify-start">
-            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-              <Bot className="w-4 h-4 text-blue-600" />
+          <div className="flex gap-2 sm:gap-3 justify-start">
+            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <Bot className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
             </div>
-            <div className="bg-gray-100 rounded-lg px-3 py-2">
-              <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+            <div className="bg-gray-100 rounded-lg px-2.5 py-2 sm:px-3 sm:py-2">
+              <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin text-gray-500" />
             </div>
           </div>
         )}
@@ -232,7 +228,7 @@ const DocumentChatBubble: React.FC<DocumentChatBubbleProps> = ({
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t">
+      <div className="p-3 sm:p-4 border-t shrink-0">
         <div className="flex gap-2">
           <textarea
             ref={inputRef}
@@ -240,22 +236,22 @@ const DocumentChatBubble: React.FC<DocumentChatBubbleProps> = ({
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="Ask about this document..."
-            className="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             rows={2}
             disabled={isLoading}
           />
           <button
             onClick={handleSendMessage}
             disabled={!input.trim() || isLoading}
-            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition shrink-0"
           >
             <Send className="w-4 h-4" />
           </button>
         </div>
-        <p className="text-xs text-gray-500 mt-2">
-          AI assistant for medical document analysis. Not a substitute for professional medical advice.
-        </p>
       </div>
+      <p className="text-xs text-gray-500 mt-2">
+        AI assistant for medical document analysis. Not a substitute for professional medical advice.
+      </p>
     </div>
   );
 };

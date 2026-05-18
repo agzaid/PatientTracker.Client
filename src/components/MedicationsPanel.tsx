@@ -42,6 +42,10 @@ const MedicationsPanel: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 10;
+  const [documentCurrentPage, setDocumentCurrentPage] = useState(1);
+  const [documentTotalPages, setDocumentTotalPages] = useState(1);
+  const [documentTotalCount, setDocumentTotalCount] = useState(0);
+  const documentPageSize = 9;
 
   useEffect(() => {
     if (user) fetchMedications();
@@ -49,14 +53,16 @@ const MedicationsPanel: React.FC = () => {
 
   useEffect(() => {
     if (user && activeTab === 'documents') fetchDocuments();
-  }, [user, activeTab]);
+  }, [user, activeTab, documentCurrentPage]);
 
   const fetchDocuments = async () => {
     if (!user) return;
     setDocumentsLoading(true);
     try {
-      const response = await medicationExtractionApi.getMedicationDocuments(1, 50);
+      const response = await medicationExtractionApi.getMedicationDocuments(documentCurrentPage, documentPageSize);
       setDocuments(response.items);
+      setDocumentTotalPages(Math.ceil(response.totalCount / documentPageSize));
+      setDocumentTotalCount(response.totalCount);
     } catch (error: any) {
       console.error('Failed to fetch documents:', error);
       toast.error(error.error || 'Failed to fetch documents');
@@ -230,7 +236,7 @@ const MedicationsPanel: React.FC = () => {
             className="bg-gradient-to-r from-blue-500 to-indigo-400 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2"
           >
             <Upload className="w-4 h-4" />
-            Scan Document
+            {t('medications.scanDocument', 'Scan Document')}
           </button>
           <button
             onClick={() => { setEditItem(null); setShowModal(true); }}
@@ -253,7 +259,7 @@ const MedicationsPanel: React.FC = () => {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            Medications
+            {t('medications.medications', 'Medications')}
           </button>
           <button
             onClick={() => setActiveTab('documents')}
@@ -263,7 +269,7 @@ const MedicationsPanel: React.FC = () => {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            Documents
+            {t('common.documents', 'Documents')}
           </button>
         </nav>
       </div>
@@ -326,10 +332,19 @@ const MedicationsPanel: React.FC = () => {
                         </span>
                       )}
                     </h4>
-                    {med.dosage && <p className="text-sm text-gray-600 mt-0.5">{med.dosage}</p>}
+                    <div className="flex items-center gap-3 mt-1">
+                      {med.dosage && <p className="text-sm text-gray-600">{med.dosage}</p>}
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Calendar className="w-3 h-3" />
+                        <span>
+                          {med.startDate ? new Date(med.startDate).toLocaleDateString() : 
+                           med.createdAt ? new Date(med.createdAt).toLocaleDateString() : 
+                           t('common.noDate')}
+                        </span>
+                      </div>
+                    </div>
                     <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-400">
                       {med.frequency && <span>{med.frequency}</span>}
-                      {med.startDate && <span>{t('medications.started')}: {new Date(med.startDate).toLocaleDateString()}</span>}
                       {med.endDate && <span>{t('medications.ended')}: {new Date(med.endDate).toLocaleDateString()}</span>}
                     </div>
                     {med.notes && <p className="text-xs text-gray-500 mt-2 bg-gray-50 rounded-lg p-2">{med.notes}</p>}
@@ -459,10 +474,10 @@ const MedicationsPanel: React.FC = () => {
         document={selectedDocument}
       />
     {/* Pagination */}
-      {!loading && totalPages > 1 && (
+      {activeTab === 'medications' && !loading && totalPages > 1 && (
         <div className="flex items-center justify-between mt-6">
           <div className="text-sm text-gray-700">
-            {t('common.showing', { 
+            {t('common.showing', {
               start: (currentPage - 1) * pageSize + 1,
               end: Math.min(currentPage * pageSize, totalCount),
               total: totalCount
@@ -476,7 +491,7 @@ const MedicationsPanel: React.FC = () => {
             >
               {t('common.previous')}
             </button>
-            
+
             {/* Page numbers */}
             <div className="flex items-center gap-1">
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
@@ -490,7 +505,7 @@ const MedicationsPanel: React.FC = () => {
                 } else {
                   pageNum = currentPage - 2 + i;
                 }
-                
+
                 return (
                   <button
                     key={pageNum}
@@ -510,6 +525,66 @@ const MedicationsPanel: React.FC = () => {
             <button
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
+              className="px-3 py-1 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {t('common.next')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Documents Pagination */}
+      {activeTab === 'documents' && !documentsLoading && documentTotalPages > 1 && (
+        <div className="flex items-center justify-between mt-6">
+          <div className="text-sm text-gray-700">
+            {t('common.showing', {
+              start: (documentCurrentPage - 1) * documentPageSize + 1,
+              end: Math.min(documentCurrentPage * documentPageSize, documentTotalCount),
+              total: documentTotalCount
+            })}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setDocumentCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={documentCurrentPage === 1}
+              className="px-3 py-1 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {t('common.previous')}
+            </button>
+
+            {/* Page numbers */}
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, documentTotalPages) }, (_, i) => {
+                let pageNum;
+                if (documentTotalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (documentCurrentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (documentCurrentPage >= documentTotalPages - 2) {
+                  pageNum = documentTotalPages - 4 + i;
+                } else {
+                  pageNum = documentCurrentPage - 2 + i;
+                }
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setDocumentCurrentPage(pageNum)}
+                    className={`w-8 h-8 rounded-lg text-sm font-medium ${
+                      documentCurrentPage === pageNum
+                        ? 'bg-blue-600 text-white'
+                        : 'border border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => setDocumentCurrentPage(prev => Math.min(prev + 1, documentTotalPages))}
+              disabled={documentCurrentPage === documentTotalPages}
               className="px-3 py-1 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t('common.next')}

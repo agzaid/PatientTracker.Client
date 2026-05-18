@@ -44,6 +44,10 @@ const DiagnosesPanel: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 10;
+  const [documentCurrentPage, setDocumentCurrentPage] = useState(1);
+  const [documentTotalPages, setDocumentTotalPages] = useState(1);
+  const [documentTotalCount, setDocumentTotalCount] = useState(0);
+  const documentPageSize = 9;
   const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
@@ -52,14 +56,16 @@ const DiagnosesPanel: React.FC = () => {
 
   useEffect(() => {
     if (user && activeTab === 'documents') fetchDocuments();
-  }, [user, activeTab]);
+  }, [user, activeTab, documentCurrentPage]);
 
   const fetchDocuments = async () => {
     if (!user) return;
     setDocumentsLoading(true);
     try {
-      const response = await diagnosisExtractionApi.getDiagnosisDocuments(1, 50);
+      const response = await diagnosisExtractionApi.getDiagnosisDocuments(documentCurrentPage, documentPageSize);
       setDocuments(response.items);
+      setDocumentTotalPages(Math.ceil(response.totalCount / documentPageSize));
+      setDocumentTotalCount(response.totalCount);
     } catch (error: any) {
       console.error('Failed to fetch documents:', error);
       toast.error(error.error || 'Failed to fetch documents');
@@ -238,7 +244,7 @@ const DiagnosesPanel: React.FC = () => {
             onClick={() => setShowExtractionModal(true)}
             className="bg-gradient-to-r from-blue-500 to-indigo-400 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-blue-500/25 transition-all flex items-center gap-2"
           >
-            <Scan className="w-4 h-4" /> Scan Document
+            <Scan className="w-4 h-4" /> {t('diagnoses.scanDocument', 'Scan Document')}
           </button>
           <button
             onClick={() => { setEditItem(null); setShowModal(true); }}
@@ -270,7 +276,7 @@ const DiagnosesPanel: React.FC = () => {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            Documents
+            {t('common.documents', 'Documents')}
           </button>
         </nav>
       </div>
@@ -443,6 +449,20 @@ const DiagnosesPanel: React.FC = () => {
                   </div>
                 ))}
               </div>
+
+              {/* Documents Pagination */}
+              {documentTotalPages > 1 && (
+                <div className="mt-6">
+                  <Pagination
+                    currentPage={documentCurrentPage}
+                    totalPages={documentTotalPages}
+                    totalCount={documentTotalCount}
+                    pageSize={documentPageSize}
+                    onPageChange={setDocumentCurrentPage}
+                    loading={documentsLoading}
+                  />
+                </div>
+              )}
             </>
           )}
         </div>
@@ -491,14 +511,16 @@ const DiagnosesPanel: React.FC = () => {
         document={selectedDocument}
       />
       
-      <Pagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        totalCount={totalCount}
-        pageSize={pageSize}
-        onPageChange={setCurrentPage}
-        loading={loading}
-      />
+      {activeTab === 'diagnoses' && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          loading={loading}
+        />
+      )}
     </div>
   );
 };
